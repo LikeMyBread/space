@@ -66,9 +66,6 @@ const SHIP = {
   engine: ENGINE_DATA.thruster,
 }
 
-var container = new PIXI.Container();
-app.stage.addChild(container);
-
 const protoData = SHIP_DATA['protogon'];
 const thrusterData = ENGINE_DATA['thruster'];
 
@@ -90,7 +87,6 @@ PIXI.loader
   .load(setup);
 
 const ship = new PIXI.Container();
-const starField = new PIXI.particles.ParticleContainer();
 
 const stars = [];
 
@@ -128,14 +124,14 @@ function setup() {
 
     star.x = x;
     star.y = y;
+    star.distanceMod = Math.random() / 10 + 0.6;
 
     stars.push(star);
-    starField.addChild(star);
+    app.stage.addChild(star);
   }
 
   ship.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
 
-  app.stage.addChild(starField);
   app.stage.addChild(ship);
 
   app.ticker.add(delta => gameLoop(delta));
@@ -162,21 +158,22 @@ function gameLoop(delta){
     ship.children[2].visible = false;
   }
 
-  starField.x -= vx || 0;
-  starField.y -= vy || 0;
-
   for (var i = 0; i < stars.length; i++) {
-    if (starField.x + stars[i].x + OFFSCREEN < 0) {
-      stars[i].x += GAME_WIDTH + randomInt(OFFSCREEN, 2 * OFFSCREEN);
+    let star = stars[i];
+    star.x -= vx * star.distanceMod || 0;
+    star.y -= vy * star.distanceMod || 0;
+
+    if (star.x + OFFSCREEN < 0) {
+      star.x += GAME_WIDTH + randomInt(OFFSCREEN, 2 * OFFSCREEN);
     }
-    if (starField.x + stars[i].x - OFFSCREEN > GAME_WIDTH) {
-      stars[i].x -= GAME_WIDTH - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
+    if (star.x - OFFSCREEN > GAME_WIDTH) {
+      star.x -= GAME_WIDTH - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
     }
-    if (starField.y + stars[i].y + OFFSCREEN < 0) {
-      stars[i].y += GAME_HEIGHT + randomInt(OFFSCREEN, 2 * OFFSCREEN);
+    if (star.y + OFFSCREEN < 0) {
+      star.y += GAME_HEIGHT + randomInt(OFFSCREEN, 2 * OFFSCREEN);
     }
-    if (starField.y + stars[i].y - OFFSCREEN > GAME_HEIGHT) {
-      stars[i].y -= GAME_HEIGHT - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
+    if (star.y - OFFSCREEN > GAME_HEIGHT) {
+      star.y -= GAME_HEIGHT - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
     }
   }
 }
