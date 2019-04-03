@@ -1,4 +1,4 @@
-const gameKeys = ['w', 'a', 's', 'd', 'up', 'left', 'down', 'right', 'q', 'e'];
+const gameKeys = ['w', 'a', 's', 'd', 'up', 'left', 'down', 'right'];
 const keyState = {};
 
 const GAME_WIDTH = 800;
@@ -42,16 +42,8 @@ function isTurningLeft() {
   return (keyState[37] || keyState[65]) && !keyState[16];
 }
 
-function isStrafingLeft() {
-  return keyState[81];
-}
-
 function isTurningRight() {
   return keyState[39] || keyState[68];
-}
-
-function isStrafingRight() {
-  return keyState[69];
 }
 
 var app = new PIXI.Application(GAME_WIDTH, GAME_HEIGHT, {backgroundColor : '#010d21'});
@@ -63,14 +55,13 @@ const SHIP_DATA = {
     pivot: {x: 10, y: 12},
     size: {x: 21, y: 26},
     engine_mount: {x: 10, y: 20},
-    thruster_pivot: {x: 10, y: 20},
   }
 }
 
 const ENGINE_DATA = {
   thruster : {
     name: 'thruster',
-    pivot: {x: 3, y: 1},
+    pivot: {x: 4, y: 1},
   }
 }
 
@@ -90,16 +81,12 @@ PIXI.loader
   .add("img/ships/Delta.png")
   .add("img/ships/Hammer.png")
   .add("img/ships/Protogon/Body.png")
-  .add("img/ships/Protogon/thrusters/front.png")
-  .add("img/ships/Protogon/thrusters/back_left.png")
-  .add("img/ships/Protogon/thrusters/back_right.png")
-  .add("img/ships/Protogon/thrusters/front_left.png")
-  .add("img/ships/Protogon/thrusters/front_right.png")
   .add("img/ships/Shadow.png")
   .add("img/ships/Shuttle.png")
   .add("img/ships/Skate.png")
   .add("img/engines/Thruster.png")
   .add("img/engines/Thruster_lit.png")
+  .add("img/engines/Thruster_reverse.png")
   .add("img/engines/TurboThruster.png")
   .add("img/stars/Star.png")
   .load(setup);
@@ -132,45 +119,14 @@ function setup() {
   ship.addChild(engineLit);
   engineLit.visible = false;
 
-  let frontThruster = new PIXI.Sprite(
-    PIXI.loader.resources["img/ships/Protogon/thrusters/front.png"].texture
+  let engineReverse = new PIXI.Sprite(
+    PIXI.loader.resources["img/engines/Thruster_reverse.png"].texture
   );
-  frontThruster.pivot.set(protoData.pivot.x, protoData.pivot.y);
-  frontThruster.position.set(5, 9);
-  ship.addChild(frontThruster);
-  frontThruster.visible = false;
+  engineReverse.pivot.set(thrusterData.pivot.x, thrusterData.pivot.y);
+  engineReverse.position.set(protoData.engine_mount.x, protoData.engine_mount.y);
+  ship.addChild(engineReverse);
+  engineReverse.visible = false;
 
-  let backLeftThruster = new PIXI.Sprite(
-    PIXI.loader.resources["img/ships/Protogon/thrusters/back_left.png"].texture
-  );
-  backLeftThruster.pivot.set(protoData.pivot.x, protoData.pivot.y);
-  backLeftThruster.position.set(5, 9);
-  ship.addChild(backLeftThruster);
-  backLeftThruster.visible = false;
-
-  let backRightThruster = new PIXI.Sprite(
-    PIXI.loader.resources["img/ships/Protogon/thrusters/back_right.png"].texture
-  );
-  backRightThruster.pivot.set(protoData.pivot.x, protoData.pivot.y);
-  backRightThruster.position.set(5, 9);
-  ship.addChild(backRightThruster);
-  backRightThruster.visible = false;
-
-  let frontLeftThruster = new PIXI.Sprite(
-    PIXI.loader.resources["img/ships/Protogon/thrusters/front_left.png"].texture
-  );
-  frontLeftThruster.pivot.set(protoData.pivot.x, protoData.pivot.y);
-  frontLeftThruster.position.set(5, 9);
-  ship.addChild(frontLeftThruster);
-  frontLeftThruster.visible = false;
-
-  let frontRightThruster = new PIXI.Sprite(
-    PIXI.loader.resources["img/ships/Protogon/thrusters/front_right.png"].texture
-  );
-  frontRightThruster.pivot.set(protoData.pivot.x, protoData.pivot.y);
-  frontRightThruster.position.set(5, 9);
-  ship.addChild(frontRightThruster);
-  frontRightThruster.visible = false;
 
   const numberOfStars = 20;
   for (let i = 0; i < numberOfStars; i++) {
@@ -196,39 +152,17 @@ function setup() {
 }
 
 const TURN_RATE = 0.08;
-const ACCEL = 0.02;
+const ACCEL = 0.04;
 let vx = 0;
 let vy = 0;
 function gameLoop(delta){
-  ship.children[4].visible = false;
-  ship.children[5].visible = false;
-  ship.children[6].visible = false;
-  ship.children[7].visible = false;
 
   if (isTurningLeft()) {
     ship.rotation -= TURN_RATE;
-    ship.children[4].visible = true;
-    ship.children[7].visible = true;
-  }
-
-  if (isStrafingLeft()) {
-    vx -= ACCEL * Math.cos(ship.rotation);
-    vy -= ACCEL * Math.sin(ship.rotation);
-    ship.children[5].visible = true;
-    ship.children[7].visible = true;
   }
 
   if (isTurningRight()) {
     ship.rotation += TURN_RATE;
-    ship.children[5].visible = true;
-    ship.children[6].visible = true;
-  }
-
-  if (isStrafingRight()) {
-    vx += ACCEL * Math.cos(ship.rotation);
-    vy += ACCEL * Math.sin(ship.rotation);
-    ship.children[4].visible = true;
-    ship.children[6].visible = true;
   }
 
   if (isThrusting()) {
