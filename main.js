@@ -89,7 +89,7 @@ PIXI.loader
   .add("img/ships/Crab.png")
   .add("img/ships/Delta.png")
   .add("img/ships/Hammer.png")
-  .add("img/ships/Protogon/body.png")
+  .add("img/ships/Protogon/Body.png")
   .add("img/ships/Protogon/thrusters/front.png")
   .add("img/ships/Protogon/thrusters/back_left.png")
   .add("img/ships/Protogon/thrusters/back_right.png")
