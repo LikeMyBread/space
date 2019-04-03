@@ -112,7 +112,7 @@ function setup() {
   const data = SHIP_DATA.protogon;
 
   let body = new PIXI.Sprite(
-    PIXI.loader.resources["img/ships/Protogon/body.png"].texture
+    PIXI.loader.resources["img/ships/Protogon/Body.png"].texture
   );
   ship.addChild(body);
   ship.pivot.set(data.pivot.x, data.pivot.y);
