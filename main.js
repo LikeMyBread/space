@@ -1,3 +1,5 @@
+'use strict';
+
 const DEBUG = document.getElementById("debug");
 
 const gameKeys = ['w', 'a', 's', 'd', 'up', 'left', 'down', 'right'];
@@ -52,33 +54,28 @@ function isTurningRight() {
 var app = new PIXI.Application(GAME_WIDTH, GAME_HEIGHT, {backgroundColor : '#010d21'});
 document.body.appendChild(app.view);
 
-const HULL_DATA = {
-  protogon : {
+const HULLS_DATA = [
+  {
     name: 'Protogon',
     mass: 20000, // kg
     pivot: {x: 10, y: 12},
     size: {x: 21, y: 26},
     engine_mount: {x: 10, y: 20},
-  }
-}
+  },
+]
 
-const ENGINE_DATA = {
-  thruster : {
+const ENGINES_DATA = [
+  {
     name: 'thruster',
     pivot: {x: 4, y: 1},
-    thrust: 2250, // kN
+    thrust: 2000, // kN
     mass: 3500, // kg
     reversible: true,
-  }
-}
+  },
+];
 
-const SHIP = {
-  hull: HULL_DATA.protogon,
-  engine: ENGINE_DATA.thruster,
-}
-
-const protoData = HULL_DATA['protogon'];
-const thrusterData = ENGINE_DATA['thruster'];
+const protoData = HULLS_DATA[0];
+const thrusterData = ENGINES_DATA[0];
 
 PIXI.loader
   .add("img/ships/Anvil.png")
@@ -98,32 +95,30 @@ PIXI.loader
   .add("img/stars/Star.png")
   .load(setup);
 
-const ship = new PIXI.Container();
 
-const stars = [];
-
-function setup() {
-  const data = HULL_DATA.protogon;
+function buildShip() {
+  const newShip = new PIXI.Container();
+  const hull = HULLS_DATA[0];
 
   let body = new PIXI.Sprite(
     PIXI.loader.resources["img/ships/Protogon/Body.png"].texture
   );
-  ship.addChild(body);
-  ship.pivot.set(data.pivot.x, data.pivot.y);
+  newShip.addChild(body);
+  newShip.pivot.set(hull.pivot.x, hull.pivot.y);
 
   let engine = new PIXI.Sprite(
     PIXI.loader.resources["img/engines/Thruster.png"].texture
   );
   engine.pivot.set(thrusterData.pivot.x, thrusterData.pivot.y);
   engine.position.set(protoData.engine_mount.x, protoData.engine_mount.y);
-  ship.addChild(engine);
+  newShip.addChild(engine);
 
   let engineLit = new PIXI.Sprite(
     PIXI.loader.resources["img/engines/Thruster_lit.png"].texture
   );
   engineLit.pivot.set(thrusterData.pivot.x, thrusterData.pivot.y);
   engineLit.position.set(protoData.engine_mount.x, protoData.engine_mount.y);
-  ship.addChild(engineLit);
+  newShip.addChild(engineLit);
   engineLit.visible = false;
 
   let engineReverse = new PIXI.Sprite(
@@ -131,10 +126,21 @@ function setup() {
   );
   engineReverse.pivot.set(thrusterData.pivot.x, thrusterData.pivot.y);
   engineReverse.position.set(protoData.engine_mount.x, protoData.engine_mount.y);
-  ship.addChild(engineReverse);
+  newShip.addChild(engineReverse);
   engineReverse.visible = false;
 
+  const newData = {
+    hull: HULLS_DATA[0],
+    engine: ENGINES_DATA[0],
+  }
 
+  return { sprite: newShip, data: newData };
+}
+
+const stars = [];
+
+
+function setup() {
   const numberOfStars = 20;
   for (let i = 0; i < numberOfStars; i++) {
     let star = new PIXI.Sprite(
@@ -151,69 +157,86 @@ function setup() {
     app.stage.addChild(star);
   }
 
-  ship.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
+  const ship = buildShip();
+  ship.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
+  app.stage.addChild(ship.sprite);
+  const TURN_RATE = 0.04;
+  const ACCEL = (ship.data.engine.thrust * 1000) / (ship.data.hull.mass + ship.data.engine.mass); // m/s/s
+  const SPEED_LIMIT = ACCEL * 10; // m/s
+  let vx = 0;
+  let vy = 0;
 
-  app.stage.addChild(ship);
+  function checkSpeed(vx, vy) {
+    const SPEED = Math.sqrt(vx * vx + vy * vy);
+    if (SPEED > SPEED_LIMIT) {
+      const theta = Math.atan2(vy, vx);
+      vy = SPEED_LIMIT * Math.sin(theta);
+      vx = SPEED_LIMIT * Math.cos(theta);
+    }
+    return { vx: vx, vy: vy };
+  }
+
+
+  function gameLoop(delta){
+
+    if (isTurningLeft()) {
+      ship.sprite.rotation -= TURN_RATE;
+    }
+
+    if (isTurningRight()) {
+      ship.sprite.rotation += TURN_RATE;
+    }
+
+
+    if (isThrusting()) {
+      const dvx = ACCEL * delta * (60 / 1000) * Math.sin(ship.sprite.rotation);
+      const dvy = ACCEL * delta * (60 / 1000) * Math.cos(ship.sprite.rotation);
+      vx += dvx;
+      vy -= dvy;
+
+      const newSpeed = checkSpeed(vx, vy);
+      vx = newSpeed.vx;
+      vy = newSpeed.vy;
+
+      ship.sprite.children[2].visible = true;
+    } else if (ship.sprite.children[2].visible) {
+      ship.sprite.children[2].visible = false;
+    }
+
+    if (isReversing() && ship.data.engine.reversible) {
+      const dvx = ACCEL * delta * (60 / 1000) * Math.sin(ship.sprite.rotation);
+      const dvy = ACCEL * delta * (60 / 1000) * Math.cos(ship.sprite.rotation);
+      vx -= dvx;
+      vy += dvy;
+
+      const newSpeed = checkSpeed(vx, vy);
+      vx = newSpeed.vx;
+      vy = newSpeed.vy;
+
+      ship.sprite.children[3].visible = true;
+    } else if (ship.sprite.children[3].visible) {
+      ship.sprite.children[3].visible = false;
+    }
+
+    for (var i = 0; i < stars.length; i++) {
+      let star = stars[i];
+      star.x -= vx * delta * (60 / 1000) * star.distanceMod || 0;
+      star.y -= vy * delta * (60 / 1000) * star.distanceMod || 0;
+
+      if (star.x + OFFSCREEN < 0) {
+        star.x += GAME_WIDTH + randomInt(OFFSCREEN, 2 * OFFSCREEN);
+      }
+      if (star.x - OFFSCREEN > GAME_WIDTH) {
+        star.x -= GAME_WIDTH - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
+      }
+      if (star.y + OFFSCREEN < 0) {
+        star.y += GAME_HEIGHT + randomInt(OFFSCREEN, 2 * OFFSCREEN);
+      }
+      if (star.y - OFFSCREEN > GAME_HEIGHT) {
+        star.y -= GAME_HEIGHT - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
+      }
+    }
+  }
 
   app.ticker.add(delta => gameLoop(delta));
-}
-
-const TURN_RATE = 0.04;
-const ACCEL = (SHIP.engine.thrust * 1000) / (SHIP.hull.mass + SHIP.engine.mass); // m/s/s
-const SPEED_LIMIT = ACCEL * 3; // m/s
-let vx = 0;
-let vy = 0;
-
-
-function gameLoop(delta){
-
-  if (isTurningLeft()) {
-    ship.rotation -= TURN_RATE;
-  }
-
-  if (isTurningRight()) {
-    ship.rotation += TURN_RATE;
-  }
-
-  const SPEED = Math.sqrt(vx * vx + vy * vy);
-  DEBUG.innerHTML = "Speed: " + SPEED;
-
-  if (isThrusting()) {
-    const dvx = ACCEL * delta * (60 / 1000) * Math.sin(ship.rotation);
-    const dvy = ACCEL * delta * (60 / 1000) * Math.cos(ship.rotation);
-    vx += dvx;
-    vy -= dvy;
-    ship.children[2].visible = true;
-  } else if (ship.children[2].visible) {
-    ship.children[2].visible = false;
-  }
-
-  if (isReversing() && SHIP.engine.reversible) {
-    const dvx = ACCEL * delta * (60 / 1000) * Math.sin(ship.rotation);
-    const dvy = ACCEL * delta * (60 / 1000) * Math.cos(ship.rotation);
-    vx -= dvx;
-    vy += dvy;
-    ship.children[3].visible = true;
-  } else if (ship.children[3].visible) {
-    ship.children[3].visible = false;
-  }
-
-  for (var i = 0; i < stars.length; i++) {
-    let star = stars[i];
-    star.x -= vx * delta * (60 / 1000) * star.distanceMod || 0;
-    star.y -= vy * delta * (60 / 1000) * star.distanceMod || 0;
-
-    if (star.x + OFFSCREEN < 0) {
-      star.x += GAME_WIDTH + randomInt(OFFSCREEN, 2 * OFFSCREEN);
-    }
-    if (star.x - OFFSCREEN > GAME_WIDTH) {
-      star.x -= GAME_WIDTH - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
-    }
-    if (star.y + OFFSCREEN < 0) {
-      star.y += GAME_HEIGHT + randomInt(OFFSCREEN, 2 * OFFSCREEN);
-    }
-    if (star.y - OFFSCREEN > GAME_HEIGHT) {
-      star.y -= GAME_HEIGHT - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
-    }
-  }
 }
