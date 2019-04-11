@@ -14,6 +14,10 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function randomChoice(choices) {
+  return choices[randomInt(0, choices.length - 1)];
+}
+
 function handleKeydown(event) {
   if (!event) return;
   const tag = event.target.tagName.toLowerCase();
@@ -61,6 +65,7 @@ const HULLS_DATA = [
     pivot: {x: 10, y: 12},
     size: {x: 21, y: 26},
     engine_mount: {x: 10, y: 20},
+    img: "img/ships/Protogon/Body.png",
   },
 ]
 
@@ -68,14 +73,23 @@ const ENGINES_DATA = [
   {
     name: 'thruster',
     pivot: {x: 4, y: 1},
-    thrust: 2000, // kN
+    thrust: 1000, // kN
     mass: 3500, // kg
     reversible: true,
+    img: "img/engines/Thruster.png",
+    imgLit: "img/engines/Thruster_lit.png",
+    imgReverse: "img/engines/Thruster_reverse.png",
+  },
+  {
+    name: 'turbo_thruster',
+    pivot: {x: 1, y: 2},
+    thrust: 2000, // kN
+    mass: 3500, // kg
+    reversible: false,
+    img: "img/engines/TurboThruster.png",
+    imgLit: "img/engines/TurboThruster_lit.png",
   },
 ];
-
-const protoData = HULLS_DATA[0];
-const thrusterData = ENGINES_DATA[0];
 
 PIXI.loader
   .add("img/ships/Anvil.png")
@@ -92,46 +106,51 @@ PIXI.loader
   .add("img/engines/Thruster_lit.png")
   .add("img/engines/Thruster_reverse.png")
   .add("img/engines/TurboThruster.png")
+  .add("img/engines/TurboThruster_lit.png")
   .add("img/stars/Star.png")
   .load(setup);
 
 
 function buildShip() {
   const newShip = new PIXI.Container();
-  const hull = HULLS_DATA[0];
+  const hull = randomChoice(HULLS_DATA);
+  const engineData = randomChoice(ENGINES_DATA);
 
   let body = new PIXI.Sprite(
-    PIXI.loader.resources["img/ships/Protogon/Body.png"].texture
+    PIXI.loader.resources[hull.img].texture
   );
   newShip.addChild(body);
   newShip.pivot.set(hull.pivot.x, hull.pivot.y);
 
   let engine = new PIXI.Sprite(
-    PIXI.loader.resources["img/engines/Thruster.png"].texture
+    PIXI.loader.resources[engineData.img].texture
   );
-  engine.pivot.set(thrusterData.pivot.x, thrusterData.pivot.y);
-  engine.position.set(protoData.engine_mount.x, protoData.engine_mount.y);
+  engine.pivot.set(engineData.pivot.x, engineData.pivot.y);
+  engine.position.set(hull.engine_mount.x, hull.engine_mount.y);
   newShip.addChild(engine);
 
   let engineLit = new PIXI.Sprite(
-    PIXI.loader.resources["img/engines/Thruster_lit.png"].texture
+    PIXI.loader.resources[engineData.imgLit].texture
   );
-  engineLit.pivot.set(thrusterData.pivot.x, thrusterData.pivot.y);
-  engineLit.position.set(protoData.engine_mount.x, protoData.engine_mount.y);
+  engineLit.pivot.set(engineData.pivot.x, engineData.pivot.y);
+  engineLit.position.set(hull.engine_mount.x, hull.engine_mount.y);
   newShip.addChild(engineLit);
   engineLit.visible = false;
 
-  let engineReverse = new PIXI.Sprite(
-    PIXI.loader.resources["img/engines/Thruster_reverse.png"].texture
-  );
-  engineReverse.pivot.set(thrusterData.pivot.x, thrusterData.pivot.y);
-  engineReverse.position.set(protoData.engine_mount.x, protoData.engine_mount.y);
-  newShip.addChild(engineReverse);
-  engineReverse.visible = false;
+  if (engineData.reversible) {
+    let engineReverse = new PIXI.Sprite(
+      PIXI.loader.resources[engineData.imgReverse].texture
+    );
+    engineReverse.pivot.set(engineData.pivot.x, engineData.pivot.y);
+    engineReverse.position.set(hull.engine_mount.x, hull.engine_mount.y);
+    newShip.addChild(engineReverse);
+    engineReverse.visible = false;
+  }
+
 
   const newData = {
-    hull: HULLS_DATA[0],
-    engine: ENGINES_DATA[0],
+    hull,
+    engine: engineData,
   }
 
   return { sprite: newShip, data: newData };
@@ -214,7 +233,7 @@ function setup() {
       vy = newSpeed.vy;
 
       ship.sprite.children[3].visible = true;
-    } else if (ship.sprite.children[3].visible) {
+    } else if (ship.data.engine.reversible && ship.sprite.children[3].visible) {
       ship.sprite.children[3].visible = false;
     }
 
