@@ -60,20 +60,82 @@ document.body.appendChild(app.view);
 
 const HULLS_DATA = [
   {
+    name: 'Anvil',
+    mass: 20000, // kg
+    pivot: {x: 15, y: 17},
+    engine_mount: {x: 15, y: 24},
+    img: "img/ships/Anvil.png",
+  },
+  {
+    name: 'Avocado',
+    mass: 20000, // kg
+    pivot: {x: 15, y: 17},
+    engine_mount: {x: 15, y: 28},
+    img: "img/ships/Avocado.png",
+  },
+  {
+    name: 'Boat',
+    mass: 20000, // kg
+    pivot: {x: 16, y: 15},
+    engine_mount: {x: 16, y: 28},
+    img: "img/ships/Boat.png",
+  },
+  {
+    name: 'Crab',
+    mass: 20000, // kg
+    pivot: {x: 15, y: 18},
+    engine_mount: {x: 15, y: 25},
+    img: "img/ships/Crab.png",
+  },
+  {
+    name: 'Delta',
+    mass: 20000, // kg
+    pivot: {x: 14, y: 16},
+    engine_mount: {x: 14, y: 25},
+    img: "img/ships/Delta.png",
+  },
+  {
+    name: 'Hammer',
+    mass: 20000, // kg
+    pivot: {x: 15, y: 14},
+    engine_mount: {x: 15, y: 24},
+    img: "img/ships/Hammer.png",
+  },
+  {
     name: 'Protogon',
     mass: 20000, // kg
-    pivot: {x: 10, y: 12},
-    size: {x: 21, y: 26},
-    engine_mount: {x: 10, y: 20},
-    img: "img/ships/Protogon/Body.png",
+    pivot: {x: 9, y: 12},
+    engine_mount: {x: 9, y: 20},
+    img: "img/ships/Protogon.png",
+  },
+  {
+    name: 'Shadow',
+    mass: 20000, // kg
+    pivot: {x: 15, y: 17},
+    engine_mount: {x: 15, y: 28},
+    img: "img/ships/Shadow.png",
+  },
+  {
+    name: 'Shuttle',
+    mass: 20000, // kg
+    pivot: {x: 14, y: 16},
+    engine_mount: {x: 14, y: 26},
+    img: "img/ships/Shuttle.png",
+  },
+  {
+    name: 'Skate',
+    mass: 20000, // kg
+    pivot: {x: 15, y: 14},
+    engine_mount: {x: 15, y: 23},
+    img: "img/ships/Skate.png",
   },
 ]
 
 const ENGINES_DATA = [
   {
     name: 'thruster',
-    pivot: {x: 4, y: 1},
-    thrust: 1000, // kN
+    pivot: {x: 3, y: 1},
+    thrust: 500, // kN
     mass: 3500, // kg
     reversible: true,
     img: "img/engines/Thruster.png",
@@ -83,7 +145,7 @@ const ENGINES_DATA = [
   {
     name: 'turbo_thruster',
     pivot: {x: 1, y: 2},
-    thrust: 2000, // kN
+    thrust: 1000, // kN
     mass: 3500, // kg
     reversible: false,
     img: "img/engines/TurboThruster.png",
@@ -98,7 +160,7 @@ PIXI.loader
   .add("img/ships/Crab.png")
   .add("img/ships/Delta.png")
   .add("img/ships/Hammer.png")
-  .add("img/ships/Protogon/Body.png")
+  .add("img/ships/Protogon.png")
   .add("img/ships/Shadow.png")
   .add("img/ships/Shuttle.png")
   .add("img/ships/Skate.png")
