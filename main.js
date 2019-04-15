@@ -175,13 +175,16 @@ PIXI.loader
 
 function buildShip() {
   const newShip = new PIXI.Container();
+  const staticParts = new PIXI.Container();
+  staticParts.cacheAsBitmap = true;
   const hull = randomChoice(HULLS_DATA);
   const engineData = randomChoice(ENGINES_DATA);
 
   let body = new PIXI.Sprite(
     PIXI.loader.resources[hull.img].texture
   );
-  newShip.addChild(body);
+  staticParts.addChild(body);
+  newShip.addChild(staticParts);
   newShip.pivot.set(hull.pivot.x, hull.pivot.y);
 
   let engine = new PIXI.Sprite(
@@ -189,7 +192,7 @@ function buildShip() {
   );
   engine.pivot.set(engineData.pivot.x, engineData.pivot.y);
   engine.position.set(hull.engine_mount.x, hull.engine_mount.y);
-  newShip.addChild(engine);
+  staticParts.addChild(engine);
 
   let engineLit = new PIXI.Sprite(
     PIXI.loader.resources[engineData.imgLit].texture
@@ -210,13 +213,11 @@ function buildShip() {
   }
 
   const accel = (engineData.thrust * 1000) / (hull.mass + engineData.mass); // m/s/s
-  const speedLimit = accel * 10;
 
   const newData = {
     vx: 0,
     vy: 0,
     accel,
-    speedLimit,
     hull,
     engine: engineData,
   }
@@ -226,15 +227,24 @@ function buildShip() {
 
 const stars = [];
 
-function applyThrust(ship, delta) {
-  const dvx = ship.accel * delta * (60 / 1000) * Math.sin(ship.sprite.rotation);
-  const dvy = ship.accel * delta * (60 / 1000) * Math.cos(ship.sprite.rotation);
-  ship.vx += dvx;
-  ship.vy -= dvy;
+function checkSpeed(vx, vy, speedLimit) {
+  const SPEED = Math.sqrt(vx * vx + vy * vy);
+  if (SPEED > speedLimit) {
+    const theta = Math.atan2(vy, vx);
+    vy = speedLimit * Math.sin(theta);
+    vx = speedLimit * Math.cos(theta);
+  }
+  return { vx: vx, vy: vy };
+}
 
-  const newSpeed = checkSpeed(ship.vx, ship.vy);
-  ship.vx = newSpeed.vx;
-  ship.vy = newSpeed.vy;
+function applyThrust(ship, delta, accelLimit) {
+  const speedLimit = ship.data.accel * accelLimit;
+  const dvx = ship.data.accel * delta * (60 / 1000) * Math.sin(ship.sprite.rotation);
+  const dvy = ship.data.accel * delta * (60 / 1000) * Math.cos(ship.sprite.rotation);
+  const vx = ship.data.vx + dvx;
+  const vy = ship.data.vy - dvy;
+
+  return checkSpeed(vx, vy, speedLimit);
 }
 
 
@@ -259,84 +269,79 @@ function setup() {
   ships.push(buildShip());
   for (let i = 0; i < ships.length; i++) {
     ships[i].sprite.position.set(GAME_WIDTH * Math.random(), GAME_HEIGHT * Math.random());
-    ships[i].data.vy = -1 * Math.random() * ships[i].data.speedLimit;
     app.stage.addChild(ships[i].sprite);
   }
 
-  const ship = buildShip();
-  ship.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
-  app.stage.addChild(ship.sprite);
+  const playerShip = buildShip();
+  playerShip.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
+  app.stage.addChild(playerShip.sprite);
 
 
   const TURN_RATE = 0.04;
-  const ACCEL = (ship.data.engine.thrust * 1000) / (ship.data.hull.mass + ship.data.engine.mass); // m/s/s
-  const SPEED_LIMIT = ACCEL * 10; // m/s
-  let vx = 0;
-  let vy = 0;
-
-  function checkSpeed(vx, vy) {
-    const SPEED = Math.sqrt(vx * vx + vy * vy);
-    if (SPEED > SPEED_LIMIT) {
-      const theta = Math.atan2(vy, vx);
-      vy = SPEED_LIMIT * Math.sin(theta);
-      vx = SPEED_LIMIT * Math.cos(theta);
-    }
-    return { vx: vx, vy: vy };
-  }
+  const ACCEL = (playerShip.data.engine.thrust * 1000) / (playerShip.data.hull.mass + playerShip.data.engine.mass); // m/s/s
+  const ACCEL_LIMIT = 10; // s
+  playerShip.data.vx = 0;
+  playerShip.data.vy = 0;
 
 
   function gameLoop(delta){
 
     if (isTurningLeft()) {
-      ship.sprite.rotation -= TURN_RATE;
+      playerShip.sprite.rotation -= TURN_RATE;
     }
 
     if (isTurningRight()) {
-      ship.sprite.rotation += TURN_RATE;
+      playerShip.sprite.rotation += TURN_RATE;
     }
 
 
     if (isThrusting()) {
-      const dvx = ACCEL * delta * (60 / 1000) * Math.sin(ship.sprite.rotation);
-      const dvy = ACCEL * delta * (60 / 1000) * Math.cos(ship.sprite.rotation);
-      vx += dvx;
-      vy -= dvy;
+      const newSpeed = applyThrust(playerShip, delta, ACCEL_LIMIT);
+      playerShip.data.vx = newSpeed.vx;
+      playerShip.data.vy = newSpeed.vy;
 
-      const newSpeed = checkSpeed(vx, vy);
-      vx = newSpeed.vx;
-      vy = newSpeed.vy;
-
-      ship.sprite.children[2].visible = true;
-    } else if (ship.sprite.children[2].visible) {
-      ship.sprite.children[2].visible = false;
+      playerShip.sprite.children[1].visible = true;
+    } else if (playerShip.sprite.children[1].visible) {
+      playerShip.sprite.children[1].visible = false;
     }
 
-    if (isReversing() && ship.data.engine.reversible) {
-      const dvx = ACCEL * delta * (60 / 1000) * Math.sin(ship.sprite.rotation);
-      const dvy = ACCEL * delta * (60 / 1000) * Math.cos(ship.sprite.rotation);
-      vx -= dvx;
-      vy += dvy;
+    if (isReversing() && playerShip.data.engine.reversible) {
+      const dvx = ACCEL * delta * (60 / 1000) * Math.sin(playerShip.sprite.rotation);
+      const dvy = ACCEL * delta * (60 / 1000) * Math.cos(playerShip.sprite.rotation);
+      playerShip.data.vx -= dvx;
+      playerShip.data.vy += dvy;
 
-      const newSpeed = checkSpeed(vx, vy);
-      vx = newSpeed.vx;
-      vy = newSpeed.vy;
+      const newSpeed = checkSpeed(playerShip.data.vx, playerShip.data.vy, ACCEL_LIMIT);
+      playerShip.data.vx = newSpeed.vx;
+      playerShip.data.vy = newSpeed.vy;
 
-      ship.sprite.children[3].visible = true;
-    } else if (ship.data.engine.reversible && ship.sprite.children[3].visible) {
-      ship.sprite.children[3].visible = false;
+      playerShip.sprite.children[2].visible = true;
+    } else if (playerShip.data.engine.reversible && playerShip.sprite.children[2].visible) {
+      playerShip.sprite.children[2].visible = false;
     }
 
     for (var i = 0; i < ships.length; i++) {
-      const shipSprite = ships[i].sprite;
-      const shipData = ships[i].data;
-      shipSprite.x -= (vx - shipData.vx) * delta * (60 / 1000) || 0;
-      shipSprite.y -= (vy - shipData.vy) * delta * (60 / 1000) || 0;
+      const ship = ships[i];
+      const shipSprite = ship.sprite;
+      const shipData = ship.data;
+
+      const newSpeed = applyThrust(ship, delta, ACCEL_LIMIT);
+      if (newSpeed.vx != shipData.vx || newSpeed.vy != shipData.vy) {
+        shipData.vx = newSpeed.vx;
+        shipData.vy = newSpeed.vy;
+        shipSprite.children[1].visible = true;
+      } else {
+        shipSprite.children[1].visible = false;
+      }
+
+      shipSprite.x -= (playerShip.data.vx - shipData.vx) * delta * (60 / 1000) || 0;
+      shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
     }
 
     for (var i = 0; i < stars.length; i++) {
       let star = stars[i];
-      star.x -= vx * delta * (60 / 1000) * star.distanceMod || 0;
-      star.y -= vy * delta * (60 / 1000) * star.distanceMod || 0;
+      star.x -= playerShip.data.vx * delta * (60 / 1000) * star.distanceMod || 0;
+      star.y -= playerShip.data.vy * delta * (60 / 1000) * star.distanceMod || 0;
 
       if (star.x + OFFSCREEN < 0) {
         star.x += GAME_WIDTH + randomInt(OFFSCREEN, 2 * OFFSCREEN);
