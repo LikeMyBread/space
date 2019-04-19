@@ -334,6 +334,17 @@ function setup() {
         shipSprite.children[1].visible = false;
       }
 
+      const angleToPlayer = Math.PI / 2 + Math.atan2(playerShip.sprite.y - shipSprite.y, playerShip.sprite.x - shipSprite.x);
+      let targetTurn = angleToPlayer - shipSprite.rotation;
+      while (targetTurn > Math.PI) {
+        targetTurn -= 2 * Math.PI;
+      }
+      while (targetTurn < -1 * Math.PI) {
+        targetTurn += 2 * Math.PI;
+      }
+      shipSprite.rotation += Math.max(Math.min(targetTurn, TURN_RATE), -1 * TURN_RATE);
+
+
       shipSprite.x -= (playerShip.data.vx - shipData.vx) * delta * (60 / 1000) || 0;
       shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
     }
