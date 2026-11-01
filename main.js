@@ -32,8 +32,8 @@ const GAME_KEYS = new Set([
 function handleKeydown(event) {
   if (!event || !event.target) return;
   const tag = event.target.tagName ? event.target.tagName.toLowerCase() : '';
-  // Make sure keys can still be inputted if a form is focused.
-  if (tag === 'input' || tag === 'textarea' || event.target.isContentEditable) return;
+  // Make sure keys can still be inputted if a form or dropdown is focused.
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || event.target.isContentEditable) return;
 
   const code = event.code;
   const key = event.key ? event.key.toLowerCase() : '';
@@ -49,7 +49,7 @@ function handleKeydown(event) {
 function handleKeyup(event) {
   if (!event || !event.target) return;
   const tag = event.target.tagName ? event.target.tagName.toLowerCase() : '';
-  if (tag === 'input' || tag === 'textarea' || event.target.isContentEditable) return;
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || event.target.isContentEditable) return;
 
   const code = event.code;
   const key = event.key ? event.key.toLowerCase() : '';
@@ -85,6 +85,19 @@ function isTurningRight() {
 }
 
 let app;
+
+// Available faction paint schemes.
+// Replaces the exact factory red shade (RGB: 212, 33, 33) on ship hulls.
+const FACTION_PAINTS = [
+  { name: 'Red', hex: '#d42121', r: 212, g: 33, b: 33, label: 'Crimson Vanguard' },
+  { name: 'Blue', hex: '#216cd4', r: 33, g: 108, b: 212, label: 'Cobalt Federation' },
+  { name: 'Green', hex: '#21d454', r: 33, g: 212, b: 84, label: 'Emerald Syndicate' },
+  { name: 'Gold', hex: '#d4a321', r: 212, g: 163, b: 33, label: 'Solaris Guild' },
+  { name: 'Purple', hex: '#9d21d4', r: 157, g: 33, b: 212, label: 'Nebula Fleet' },
+  { name: 'Cyan', hex: '#21c2d4', r: 33, g: 194, b: 212, label: 'Outer Colonies' },
+  { name: 'Orange', hex: '#d45e21', r: 212, g: 94, b: 33, label: 'Corsair Raiders' },
+  { name: 'Pink', hex: '#d4218b', r: 212, g: 33, b: 139, label: 'Nova Collective' },
+];
 
 const HULLS_DATA = [
   {
@@ -200,30 +213,89 @@ const ASSET_PATHS = [
   "img/stars/Star.png"
 ];
 
-function buildShip() {
-  const newShip = new PIXI.Container();
-  const staticParts = new PIXI.Container();
-  if (typeof staticParts.cacheAsTexture === 'function') {
-    staticParts.cacheAsTexture(true);
-  } else {
-    staticParts.cacheAsBitmap = true;
+// Preloaded HTMLImageElements for direct pixel manipulation in memory
+const rawImages = {};
+
+function preloadRawImages(paths) {
+  return Promise.all(
+    paths.map((path) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          rawImages[path] = img;
+          resolve(img);
+        };
+        img.onerror = () => {
+          reject(new Error(`Failed to load image: ${path}`));
+        };
+        img.src = path;
+      });
+    })
+  );
+}
+
+// In-memory cache for baked static ship textures: (hull + engine + paintColor)
+const bakedTextureCache = new Map();
+
+function getBakedShipTexture(hull, engineData, paintColor) {
+  const cacheKey = `${hull.name}_${engineData.name}_${paintColor.name}`;
+  if (bakedTextureCache.has(cacheKey)) {
+    return bakedTextureCache.get(cacheKey);
   }
-  const hull = randomChoice(HULLS_DATA);
-  const engineData = randomChoice(ENGINES_DATA);
 
-  let body = new PIXI.Sprite(
-    PIXI.Assets.get(hull.img)
-  );
-  staticParts.addChild(body);
-  newShip.addChild(staticParts);
+  const hullImg = rawImages[hull.img];
+  const engineImg = rawImages[engineData.img];
+
+  const ex = hull.engine_mount.x - engineData.pivot.x;
+  const ey = hull.engine_mount.y - engineData.pivot.y;
+
+  const canvasWidth = Math.max(hullImg.width, ex + engineImg.width);
+  const canvasHeight = Math.max(hullImg.height, ey + engineImg.height);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext('2d');
+
+  // Draw hull image at (0, 0)
+  ctx.drawImage(hullImg, 0, 0);
+
+  // Replace exact matching red pixels (RGB: 212, 33, 33) with the selected paint color
+  const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const data = imgData.data;
+  const targetR = 212;
+  const targetG = 33;
+  const targetB = 33;
+
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i] === targetR && data[i + 1] === targetG && data[i + 2] === targetB && data[i + 3] === 255) {
+      data[i] = paintColor.r;
+      data[i + 1] = paintColor.g;
+      data[i + 2] = paintColor.b;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // Draw static engine on top at mount position
+  ctx.drawImage(engineImg, ex, ey);
+
+  const texture = PIXI.Texture.from(canvas);
+  bakedTextureCache.set(cacheKey, texture);
+  return texture;
+}
+
+function buildShip(hullChoice, engineChoice, paintChoice) {
+  const newShip = new PIXI.Container();
+  const hull = hullChoice || randomChoice(HULLS_DATA);
+  const engineData = engineChoice || randomChoice(ENGINES_DATA);
+  const paintColor = paintChoice || randomChoice(FACTION_PAINTS);
+
+  // Bake static components (body + engine with custom paint color) into a single image texture
+  const bakedTexture = getBakedShipTexture(hull, engineData, paintColor);
+  const staticSprite = new PIXI.Sprite(bakedTexture);
+  newShip.addChild(staticSprite);
   newShip.pivot.set(hull.pivot.x, hull.pivot.y);
-
-  let engine = new PIXI.Sprite(
-    PIXI.Assets.get(engineData.img)
-  );
-  engine.pivot.set(engineData.pivot.x, engineData.pivot.y);
-  engine.position.set(hull.engine_mount.x, hull.engine_mount.y);
-  staticParts.addChild(engine);
 
   let engineLit = new PIXI.Sprite(
     PIXI.Assets.get(engineData.imgLit)
@@ -252,6 +324,8 @@ function buildShip() {
     accel,
     hull,
     engine: engineData,
+    paint: paintColor,
+    staticSprite,
     engineLitSprite: engineLit,
     engineReverseSprite: engineReverse,
   };
@@ -326,7 +400,7 @@ function setup() {
     updateShipCount();
   }
 
-  // Initial NPC ship
+  // Initial NPC ship with a random faction paint job
   spawnNpcShips(1);
 
   if (spawnBtn) {
@@ -336,9 +410,28 @@ function setup() {
     });
   }
 
-  const playerShip = buildShip();
+  // Player ship starts with the default Crimson Vanguard paint
+  const playerShip = buildShip(null, null, FACTION_PAINTS[0]);
   playerShip.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
   app.stage.addChild(playerShip.sprite);
+
+  function setPlayerPaint(paint) {
+    playerShip.data.paint = paint;
+    const newTexture = getBakedShipTexture(playerShip.data.hull, playerShip.data.engine, paint);
+    playerShip.data.staticSprite.texture = newTexture;
+  }
+
+  const paintSelect = document.getElementById('paint-select');
+  if (paintSelect) {
+    paintSelect.addEventListener('change', (event) => {
+      const selectedName = event.target.value;
+      const paint = FACTION_PAINTS.find((p) => p.name === selectedName);
+      if (paint) {
+        setPlayerPaint(paint);
+      }
+      event.target.blur();
+    });
+  }
 
   const TURN_RATE = 0.04;
   const ACCEL_LIMIT = 10; // s
@@ -363,6 +456,7 @@ function setup() {
         }
       }
     }
+
     if (isTurningLeft()) {
       playerShip.sprite.rotation -= TURN_RATE;
     }
@@ -462,7 +556,10 @@ async function init() {
   });
   document.body.appendChild(app.canvas);
 
-  await PIXI.Assets.load(ASSET_PATHS);
+  await Promise.all([
+    PIXI.Assets.load(ASSET_PATHS),
+    preloadRawImages(ASSET_PATHS),
+  ]);
   setup();
 }
 

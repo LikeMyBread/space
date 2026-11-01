@@ -24,6 +24,13 @@
       max-width: 100%;
       justify-content: space-between;
       box-sizing: border-box;
+      flex-wrap: wrap;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .btn {
@@ -60,11 +67,32 @@
       border: 1px solid #1f293d;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+    }
+
+    .select-badge {
+      padding: 5px 12px;
     }
 
     .stat-label {
       color: #94a3b8;
+      font-size: 13px;
+    }
+
+    .paint-dropdown {
+      background: #152238;
+      color: #f1f5f9;
+      border: 1px solid #2d4263;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .paint-dropdown:focus {
+      outline: none;
+      border-color: #3b82f6;
     }
 
     #fps-counter {
@@ -95,7 +123,22 @@
 </head>
 <body>
   <div id="controls-bar">
-    <button id="spawn-btn" class="btn" type="button">Spawn 1,000 Ships</button>
+    <div class="control-group">
+      <button id="spawn-btn" class="btn" type="button">Spawn 1,000 Ships</button>
+      <div class="stat-badge select-badge">
+        <label for="paint-select" class="stat-label">Player Paint:</label>
+        <select id="paint-select" class="paint-dropdown">
+          <option value="Red" selected>Crimson Vanguard (Red)</option>
+          <option value="Blue">Cobalt Federation (Blue)</option>
+          <option value="Green">Emerald Syndicate (Green)</option>
+          <option value="Gold">Solaris Guild (Gold)</option>
+          <option value="Purple">Nebula Fleet (Purple)</option>
+          <option value="Cyan">Outer Colonies (Cyan)</option>
+          <option value="Orange">Corsair Raiders (Orange)</option>
+          <option value="Pink">Nova Collective (Pink)</option>
+        </select>
+      </div>
+    </div>
     <div class="stats">
       <div class="stat-badge">
         <span class="stat-label">FPS:</span>
