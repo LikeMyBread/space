@@ -3,9 +3,112 @@
 <head>
   <meta charset="utf-8">
   <title>Ship Customization</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 16px;
+      background-color: #050b14;
+      color: #e0e6ed;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #controls-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 12px;
+      width: 1000px;
+      max-width: 100%;
+      justify-content: space-between;
+      box-sizing: border-box;
+    }
+
+    .btn {
+      background: #1e3a5f;
+      color: #ffffff;
+      border: 1px solid #3b82f6;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s ease, transform 0.05s ease;
+    }
+
+    .btn:hover {
+      background: #2563eb;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
+    }
+
+    .stat-badge {
+      background: #0d1829;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid #1f293d;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-label {
+      color: #94a3b8;
+    }
+
+    #fps-counter {
+      font-weight: 700;
+    }
+
+    .fps-good { color: #4ade80; }
+    .fps-mid { color: #facc15; }
+    .fps-low { color: #f87171; }
+
+    #ship-count {
+      color: #60a5fa;
+      font-weight: 700;
+    }
+
+    #debug {
+      margin: 4px 0;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 6px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+  </style>
 </head>
 <body>
+  <div id="controls-bar">
+    <button id="spawn-btn" class="btn" type="button">Spawn 1,000 Ships</button>
+    <div class="stats">
+      <div class="stat-badge">
+        <span class="stat-label">FPS:</span>
+        <span id="fps-counter" class="fps-good">--</span>
+      </div>
+      <div class="stat-badge">
+        <span class="stat-label">NPC Ships:</span>
+        <span id="ship-count">1</span>
+      </div>
+    </div>
+  </div>
   <p id="debug"></p>
+
   <script src="./pixi/pixi.min.js"></script>
   <script src="main.js"></script>
 </body>

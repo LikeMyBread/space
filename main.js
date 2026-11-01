@@ -1,6 +1,9 @@
 'use strict';
 
 const DEBUG = document.getElementById("debug");
+const fpsDisplay = document.getElementById("fps-counter");
+const shipCountDisplay = document.getElementById("ship-count");
+const spawnBtn = document.getElementById("spawn-btn");
 
 const GAME_WIDTH = 1000;
 const GAME_HEIGHT = 600;
@@ -306,10 +309,31 @@ function setup() {
   }
 
   const ships = [];
-  ships.push(buildShip());
-  for (let i = 0; i < ships.length; i++) {
-    ships[i].sprite.position.set(GAME_WIDTH * Math.random(), GAME_HEIGHT * Math.random());
-    app.stage.addChild(ships[i].sprite);
+
+  function updateShipCount() {
+    if (shipCountDisplay) {
+      shipCountDisplay.textContent = ships.length.toLocaleString();
+    }
+  }
+
+  function spawnNpcShips(count) {
+    for (let i = 0; i < count; i++) {
+      const npc = buildShip();
+      npc.sprite.position.set(GAME_WIDTH * Math.random(), GAME_HEIGHT * Math.random());
+      ships.push(npc);
+      app.stage.addChild(npc.sprite);
+    }
+    updateShipCount();
+  }
+
+  // Initial NPC ship
+  spawnNpcShips(1);
+
+  if (spawnBtn) {
+    spawnBtn.addEventListener('click', (event) => {
+      spawnNpcShips(1000);
+      event.target.blur();
+    });
   }
 
   const playerShip = buildShip();
@@ -321,7 +345,24 @@ function setup() {
   playerShip.data.vx = 0;
   playerShip.data.vy = 0;
 
+  let fpsTimer = 0;
+
   function gameLoop(delta){
+    fpsTimer += delta;
+    if (fpsTimer >= 15) {
+      fpsTimer = 0;
+      if (fpsDisplay && app && app.ticker) {
+        const fps = Math.round(app.ticker.FPS);
+        fpsDisplay.textContent = fps;
+        if (fps >= 50) {
+          fpsDisplay.className = 'fps-good';
+        } else if (fps >= 30) {
+          fpsDisplay.className = 'fps-mid';
+        } else {
+          fpsDisplay.className = 'fps-low';
+        }
+      }
+    }
     if (isTurningLeft()) {
       playerShip.sprite.rotation -= TURN_RATE;
     }
