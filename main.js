@@ -278,6 +278,16 @@ function applyThrust(ship, delta, accelLimit) {
   return checkSpeed(vx, vy, speedLimit);
 }
 
+function applyReverseThrust(ship, delta, accelLimit) {
+  const speedLimit = ship.data.accel * accelLimit;
+  const dvx = ship.data.accel * delta * (60 / 1000) * Math.sin(ship.sprite.rotation);
+  const dvy = ship.data.accel * delta * (60 / 1000) * Math.cos(ship.sprite.rotation);
+  const vx = ship.data.vx - dvx;
+  const vy = ship.data.vy + dvy;
+
+  return checkSpeed(vx, vy, speedLimit);
+}
+
 function setup() {
   const numberOfStars = 20;
   for (let i = 0; i < numberOfStars; i++) {
@@ -307,7 +317,6 @@ function setup() {
   app.stage.addChild(playerShip.sprite);
 
   const TURN_RATE = 0.04;
-  const ACCEL = (playerShip.data.engine.thrust * 1000) / (playerShip.data.hull.mass + playerShip.data.engine.mass); // m/s/s
   const ACCEL_LIMIT = 10; // s
   playerShip.data.vx = 0;
   playerShip.data.vy = 0;
@@ -334,12 +343,7 @@ function setup() {
     }
 
     if (isReversing() && playerShip.data.engine.reversible) {
-      const dvx = ACCEL * delta * (60 / 1000) * Math.sin(playerShip.sprite.rotation);
-      const dvy = ACCEL * delta * (60 / 1000) * Math.cos(playerShip.sprite.rotation);
-      playerShip.data.vx -= dvx;
-      playerShip.data.vy += dvy;
-
-      const newSpeed = checkSpeed(playerShip.data.vx, playerShip.data.vy, ACCEL_LIMIT);
+      const newSpeed = applyReverseThrust(playerShip, delta, ACCEL_LIMIT);
       playerShip.data.vx = newSpeed.vx;
       playerShip.data.vy = newSpeed.vy;
 
