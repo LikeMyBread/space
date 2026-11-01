@@ -1,0 +1,17 @@
+{
+  "name": "space",
+  "version": "1.0.0",
+  "description": "Space ship customization and simulation game",
+  "main": "main.js",
+  "scripts": {
+    "start": "python3 -m http.server 8080"
+  },
+  "dependencies": {
+    "pixi.js": "^8.22.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LikeMyBread/space.git"
+  },
+  "license": "ISC"
+}
