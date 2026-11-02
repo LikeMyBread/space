@@ -4,6 +4,9 @@ const DEBUG = document.getElementById("debug");
 const fpsDisplay = document.getElementById("fps-counter");
 const shipCountDisplay = document.getElementById("ship-count");
 const spawnBtn = document.getElementById("spawn-btn");
+const bodySelect = document.getElementById("body-select");
+const engineSelect = document.getElementById("engine-select");
+const paintSelect = document.getElementById("paint-select");
 
 const GAME_WIDTH = 1000;
 const GAME_HEIGHT = 600;
@@ -415,19 +418,85 @@ function setup() {
   playerShip.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
   app.stage.addChild(playerShip.sprite);
 
-  function setPlayerPaint(paint) {
-    playerShip.data.paint = paint;
-    const newTexture = getBakedShipTexture(playerShip.data.hull, playerShip.data.engine, paint);
-    playerShip.data.staticSprite.texture = newTexture;
+  function updatePlayerShipConfig({ hull, engine, paint }) {
+    if (hull) playerShip.data.hull = hull;
+    if (engine) playerShip.data.engine = engine;
+    if (paint) playerShip.data.paint = paint;
+
+    const currentHull = playerShip.data.hull;
+    const currentEngine = playerShip.data.engine;
+    const currentPaint = playerShip.data.paint;
+
+    // Recalculate acceleration
+    playerShip.data.accel = (currentEngine.thrust * 1000) / (currentHull.mass + currentEngine.mass);
+
+    // Update ship container pivot for new hull center
+    playerShip.sprite.pivot.set(currentHull.pivot.x, currentHull.pivot.y);
+
+    // Update baked static components (body + engine + paint)
+    const newBakedTexture = getBakedShipTexture(currentHull, currentEngine, currentPaint);
+    playerShip.data.staticSprite.texture = newBakedTexture;
+
+    // Update lit flame sprite
+    const litTexture = PIXI.Assets.get(currentEngine.imgLit);
+    playerShip.data.engineLitSprite.texture = litTexture;
+    playerShip.data.engineLitSprite.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
+    playerShip.data.engineLitSprite.position.set(currentHull.engine_mount.x, currentHull.engine_mount.y);
+
+    // Update reverse thruster flame sprite
+    if (currentEngine.reversible) {
+      const reverseTexture = PIXI.Assets.get(currentEngine.imgReverse);
+      if (!playerShip.data.engineReverseSprite) {
+        const revSprite = new PIXI.Sprite(reverseTexture);
+        playerShip.sprite.addChild(revSprite);
+        playerShip.data.engineReverseSprite = revSprite;
+      } else {
+        playerShip.data.engineReverseSprite.texture = reverseTexture;
+      }
+      playerShip.data.engineReverseSprite.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
+      playerShip.data.engineReverseSprite.position.set(currentHull.engine_mount.x, currentHull.engine_mount.y);
+      playerShip.data.engineReverseSprite.visible = false;
+    } else {
+      if (playerShip.data.engineReverseSprite) {
+        playerShip.data.engineReverseSprite.visible = false;
+        playerShip.sprite.removeChild(playerShip.data.engineReverseSprite);
+        playerShip.data.engineReverseSprite = null;
+      }
+    }
   }
 
-  const paintSelect = document.getElementById('paint-select');
+  // Synchronize dropdown controls with player's loadout
+  if (bodySelect) {
+    bodySelect.value = playerShip.data.hull.name;
+    bodySelect.addEventListener('change', (event) => {
+      const selectedName = event.target.value;
+      const newHull = HULLS_DATA.find((h) => h.name === selectedName);
+      if (newHull) {
+        updatePlayerShipConfig({ hull: newHull });
+      }
+      event.target.blur();
+    });
+  }
+
+  if (engineSelect) {
+    engineSelect.value = playerShip.data.engine.name;
+    engineSelect.addEventListener('change', (event) => {
+      const selectedName = event.target.value;
+      const newEngine = ENGINES_DATA.find((e) => e.name === selectedName);
+      if (newEngine) {
+        updatePlayerShipConfig({ engine: newEngine });
+      }
+      event.target.blur();
+    });
+  }
+
   if (paintSelect) {
+    paintSelect.value = playerShip.data.paint.name;
     paintSelect.addEventListener('change', (event) => {
       const selectedName = event.target.value;
-      const paint = FACTION_PAINTS.find((p) => p.name === selectedName);
-      if (paint) {
-        setPlayerPaint(paint);
+      const newPaint = FACTION_PAINTS.find((p) => p.name === selectedName);
+      if (newPaint) {
+        updatePlayerShipConfig({ paint: newPaint });
       }
       event.target.blur();
     });
@@ -554,7 +623,12 @@ async function init() {
     height: GAME_HEIGHT,
     backgroundColor: '#010d21',
   });
-  document.body.appendChild(app.canvas);
+  const container = document.getElementById("game-container");
+  if (container) {
+    container.appendChild(app.canvas);
+  } else {
+    document.body.appendChild(app.canvas);
+  }
 
   await Promise.all([
     PIXI.Assets.load(ASSET_PATHS),

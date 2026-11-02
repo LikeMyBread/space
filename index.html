@@ -15,15 +15,38 @@
       align-items: center;
     }
 
-    #controls-bar {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 12px;
+    #game-container {
       width: 1000px;
       max-width: 100%;
-      justify-content: space-between;
+      display: flex;
+      justify-content: center;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 6px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+
+    #controls-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 14px;
+      width: 1000px;
+      max-width: 100%;
+      background: #091220;
+      border: 1px solid #1a2942;
+      border-radius: 8px;
+      padding: 14px 18px;
       box-sizing: border-box;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
       flex-wrap: wrap;
     }
 
@@ -31,6 +54,48 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin-right: 4px;
+    }
+
+    .control-badge {
+      background: #0d1829;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #1f293d;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-label {
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .control-dropdown {
+      background: #152238;
+      color: #f1f5f9;
+      border: 1px solid #2d4263;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .control-dropdown:focus {
+      outline: none;
+      border-color: #3b82f6;
     }
 
     .btn {
@@ -53,7 +118,7 @@
       transform: scale(0.98);
     }
 
-    .stats {
+    .stats-group {
       display: flex;
       gap: 12px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -70,31 +135,6 @@
       gap: 8px;
     }
 
-    .select-badge {
-      padding: 5px 12px;
-    }
-
-    .stat-label {
-      color: #94a3b8;
-      font-size: 13px;
-    }
-
-    .paint-dropdown {
-      background: #152238;
-      color: #f1f5f9;
-      border: 1px solid #2d4263;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-    }
-
-    .paint-dropdown:focus {
-      outline: none;
-      border-color: #3b82f6;
-    }
-
     #fps-counter {
       font-weight: 700;
     }
@@ -109,47 +149,80 @@
     }
 
     #debug {
-      margin: 4px 0;
+      margin: 6px 0 0;
       font-size: 13px;
       color: #94a3b8;
-    }
-
-    canvas {
-      display: block;
-      border-radius: 6px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
     }
   </style>
 </head>
 <body>
-  <div id="controls-bar">
-    <div class="control-group">
-      <button id="spawn-btn" class="btn" type="button">Spawn 1,000 Ships</button>
-      <div class="stat-badge select-badge">
-        <label for="paint-select" class="stat-label">Player Paint:</label>
-        <select id="paint-select" class="paint-dropdown">
-          <option value="Red" selected>Crimson Vanguard (Red)</option>
-          <option value="Blue">Cobalt Federation (Blue)</option>
-          <option value="Green">Emerald Syndicate (Green)</option>
-          <option value="Gold">Solaris Guild (Gold)</option>
-          <option value="Purple">Nebula Fleet (Purple)</option>
-          <option value="Cyan">Outer Colonies (Cyan)</option>
-          <option value="Orange">Corsair Raiders (Orange)</option>
-          <option value="Pink">Nova Collective (Pink)</option>
-        </select>
+  <div id="game-container"></div>
+
+  <div id="controls-panel">
+    <!-- Ship Customization Controls -->
+    <div class="controls-row">
+      <div class="control-group">
+        <span class="section-title">Ship Customization:</span>
+        <div class="control-badge">
+          <label for="body-select" class="control-label">Body:</label>
+          <select id="body-select" class="control-dropdown">
+            <option value="Anvil">Anvil</option>
+            <option value="Avocado">Avocado</option>
+            <option value="Boat">Boat</option>
+            <option value="Crab">Crab</option>
+            <option value="Delta">Delta</option>
+            <option value="Hammer">Hammer</option>
+            <option value="Protogon">Protogon</option>
+            <option value="Shadow">Shadow</option>
+            <option value="Shuttle">Shuttle</option>
+            <option value="Skate">Skate</option>
+          </select>
+        </div>
+
+        <div class="control-badge">
+          <label for="engine-select" class="control-label">Engine:</label>
+          <select id="engine-select" class="control-dropdown">
+            <option value="thruster">Standard Thruster (Reversible)</option>
+            <option value="turbo_thruster">Turbo Thruster (High Thrust)</option>
+          </select>
+        </div>
+
+        <div class="control-badge">
+          <label for="paint-select" class="control-label">Paint:</label>
+          <select id="paint-select" class="control-dropdown">
+            <option value="Red">Crimson Vanguard (Red)</option>
+            <option value="Blue">Cobalt Federation (Blue)</option>
+            <option value="Green">Emerald Syndicate (Green)</option>
+            <option value="Gold">Solaris Guild (Gold)</option>
+            <option value="Purple">Nebula Fleet (Purple)</option>
+            <option value="Cyan">Outer Colonies (Cyan)</option>
+            <option value="Orange">Corsair Raiders (Orange)</option>
+            <option value="Pink">Nova Collective (Pink)</option>
+          </select>
+        </div>
       </div>
     </div>
-    <div class="stats">
-      <div class="stat-badge">
-        <span class="stat-label">FPS:</span>
-        <span id="fps-counter" class="fps-good">--</span>
+
+    <!-- Actions & Stats Controls -->
+    <div class="controls-row">
+      <div class="control-group">
+        <span class="section-title">Simulation:</span>
+        <button id="spawn-btn" class="btn" type="button">Spawn 1,000 Ships</button>
       </div>
-      <div class="stat-badge">
-        <span class="stat-label">NPC Ships:</span>
-        <span id="ship-count">1</span>
+
+      <div class="stats-group">
+        <div class="stat-badge">
+          <span class="control-label">FPS:</span>
+          <span id="fps-counter" class="fps-good">--</span>
+        </div>
+        <div class="stat-badge">
+          <span class="control-label">NPC Ships:</span>
+          <span id="ship-count">1</span>
+        </div>
       </div>
     </div>
   </div>
+
   <p id="debug"></p>
 
   <script src="./pixi/pixi.min.js"></script>
