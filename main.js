@@ -113,7 +113,7 @@ const WEAPONS_DATA = {
     name: 'Light Blaster',
     img: "img/weapons/Blaster.png",
     size: 0,
-    attachmentPoint: {x: 2, y: 14}, // down and to the right of top left corner
+    attachmentPoint: {x: 2, y: 19}, // down and to the right of top left corner (0-indexed)
     projectileOrigin: {x: 2, y: 2}, // relative to weapon top-left
     fireRate: 4, // shots per second
     projectile: {
@@ -135,7 +135,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 15, y: 17},
       }
     ],
@@ -149,7 +149,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 15, y: 17},
       }
     ],
@@ -163,7 +163,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 16, y: 15},
       }
     ],
@@ -177,7 +177,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 15, y: 18},
       }
     ],
@@ -191,7 +191,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 14, y: 16},
       }
     ],
@@ -205,7 +205,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 15, y: 14},
       }
     ],
@@ -219,7 +219,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 9, y: 12},
       }
     ],
@@ -233,7 +233,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 15, y: 17},
       }
     ],
@@ -247,7 +247,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 14, y: 16},
       }
     ],
@@ -261,7 +261,7 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: true,
+        onTop: false,
         location: {x: 15, y: 14},
       }
     ],
