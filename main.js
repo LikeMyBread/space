@@ -119,7 +119,9 @@ const WEAPONS_DATA = {
     projectile: {
       img: "img/weapons/Blaster Bolt.png",
       pivot: {x: 1, y: 1},
-      speed: 600, // px/s
+      speed: 150, // px/s
+      rotation: 0.1, // spin speed in rad/tick
+      rotationSpeed: 0.1,
       lifetime: 1.5, // seconds
     }
   }
@@ -554,10 +556,14 @@ function spawnProjectile(ship, weaponSlot) {
     app.stage.addChildAt(sprite, shipIndex);
   }
 
+  const spinSpeed = projData.rotation !== undefined ? projData.rotation : (projData.rotationSpeed !== undefined ? projData.rotationSpeed : 0.1);
+
   projectiles.push({
     sprite,
     vx,
     vy,
+    rotation: spinSpeed,
+    rotationSpeed: spinSpeed,
     shipId: ship.data.id,
     originTime: performance.now(),
     lifetime: projData.lifetime,
@@ -792,6 +798,7 @@ function setup() {
 
       proj.sprite.x += (proj.vx - playerShip.data.vx) * delta * (60 / 1000);
       proj.sprite.y += (proj.vy - playerShip.data.vy) * delta * (60 / 1000);
+      proj.sprite.rotation += (proj.rotation || proj.rotationSpeed || 0) * delta;
     }
 
     for (var i = 0; i < ships.length; i++) {
