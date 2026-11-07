@@ -119,7 +119,7 @@ const WEAPONS_DATA = {
     projectile: {
       img: "img/weapons/Blaster Bolt.png",
       pivot: {x: 1, y: 1},
-      speed: 150, // px/s
+      speed: 50, // px/s
       rotation: 0.1, // spin speed in rad/tick
       rotationSpeed: 0.1,
       lifetime: 1.5, // seconds
@@ -180,7 +180,12 @@ const HULLS_DATA = [
       {
         size: 0,
         onTop: false,
-        location: {x: 15, y: 18},
+        location: {x: 4, y: 11},
+      },
+      {
+        size: 0,
+        onTop: false,
+        location: {x: 27, y: 11},
       }
     ],
   },
@@ -430,14 +435,12 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
   const engineData = engineChoice || randomChoice(ENGINES_DATA);
   const paintColor = paintChoice || randomChoice(FACTION_PAINTS);
 
-  // Default weapon setup: Light Blaster attached to default hardpoint
-  const weapons = weaponsChoice || [
-    {
-      weapon: WEAPONS_DATA.light_blaster,
-      hardpoint: hull.hardpoints[0],
-      lastFired: 0,
-    }
-  ];
+  // Default weapon setup: Light Blaster attached to each hardpoint on the hull
+  const weapons = weaponsChoice || hull.hardpoints.map((hp) => ({
+    weapon: WEAPONS_DATA.light_blaster,
+    hardpoint: hp,
+    lastFired: 0,
+  }));
 
   // Bake static components (body + engine + weapons with custom paint color) into a single image texture
   const baked = getBakedShipTexture(hull, engineData, paintColor, weapons);
@@ -636,10 +639,12 @@ function setup() {
   function updatePlayerShipConfig({ hull, engine, paint }) {
     if (hull) {
       playerShip.data.hull = hull;
-      // Re-assign default weapon to the new hull's default hardpoint
-      if (playerShip.data.weapons && playerShip.data.weapons.length > 0) {
-        playerShip.data.weapons[0].hardpoint = hull.hardpoints[0];
-      }
+      // Re-assign default weapons to all hardpoints of the new hull
+      playerShip.data.weapons = hull.hardpoints.map((hp) => ({
+        weapon: WEAPONS_DATA.light_blaster,
+        hardpoint: hp,
+        lastFired: 0,
+      }));
     }
     if (engine) playerShip.data.engine = engine;
     if (paint) playerShip.data.paint = paint;
