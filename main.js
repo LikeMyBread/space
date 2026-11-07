@@ -27,6 +27,7 @@ const GAME_KEYS = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD',
   'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
   'ShiftLeft', 'ShiftRight',
+  'Space', ' ', 'space',
   'w', 'a', 's', 'd',
   'arrowup', 'arrowleft', 'arrowdown', 'arrowright',
   'shift'
@@ -87,6 +88,10 @@ function isTurningRight() {
   return !!(keyState['KeyD'] || keyState['ArrowRight'] || keyState['d'] || keyState['arrowright'] || keyState[39] || keyState[68]);
 }
 
+function isFiring() {
+  return !!(keyState['Space'] || keyState[' '] || keyState['space'] || keyState[32]);
+}
+
 let app;
 
 // Available faction paint schemes.
@@ -102,6 +107,24 @@ const FACTION_PAINTS = [
   { name: 'Pink', hex: '#d4218b', r: 212, g: 33, b: 139, label: 'Nova Collective' },
 ];
 
+// Weapon definitions
+const WEAPONS_DATA = {
+  light_blaster: {
+    name: 'Light Blaster',
+    img: "img/weapons/Blaster.png",
+    size: 0,
+    attachmentPoint: {x: 2, y: 14}, // down and to the right of top left corner
+    projectileOrigin: {x: 2, y: 2}, // relative to weapon top-left
+    fireRate: 4, // shots per second
+    projectile: {
+      img: "img/weapons/Blaster Bolt.png",
+      pivot: {x: 1, y: 1},
+      speed: 600, // px/s
+      lifetime: 1.5, // seconds
+    }
+  }
+};
+
 const HULLS_DATA = [
   {
     name: 'Anvil',
@@ -109,6 +132,13 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 17},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Anvil.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 15, y: 17},
+      }
+    ],
   },
   {
     name: 'Avocado',
@@ -116,6 +146,13 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 17},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Avocado.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 15, y: 17},
+      }
+    ],
   },
   {
     name: 'Boat',
@@ -123,6 +160,13 @@ const HULLS_DATA = [
     pivot: {x: 16, y: 15},
     engine_mount: {x: 16, y: 28},
     img: "img/ships/Boat.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 16, y: 15},
+      }
+    ],
   },
   {
     name: 'Crab',
@@ -130,6 +174,13 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 18},
     engine_mount: {x: 15, y: 25},
     img: "img/ships/Crab.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 15, y: 18},
+      }
+    ],
   },
   {
     name: 'Delta',
@@ -137,6 +188,13 @@ const HULLS_DATA = [
     pivot: {x: 14, y: 16},
     engine_mount: {x: 14, y: 25},
     img: "img/ships/Delta.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 14, y: 16},
+      }
+    ],
   },
   {
     name: 'Hammer',
@@ -144,6 +202,13 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 14},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Hammer.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 15, y: 14},
+      }
+    ],
   },
   {
     name: 'Protogon',
@@ -151,6 +216,13 @@ const HULLS_DATA = [
     pivot: {x: 9, y: 12},
     engine_mount: {x: 9, y: 20},
     img: "img/ships/Protogon.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 9, y: 12},
+      }
+    ],
   },
   {
     name: 'Shadow',
@@ -158,6 +230,13 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 17},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Shadow.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 15, y: 17},
+      }
+    ],
   },
   {
     name: 'Shuttle',
@@ -165,6 +244,13 @@ const HULLS_DATA = [
     pivot: {x: 14, y: 16},
     engine_mount: {x: 14, y: 26},
     img: "img/ships/Shuttle.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 14, y: 16},
+      }
+    ],
   },
   {
     name: 'Skate',
@@ -172,6 +258,13 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 14},
     engine_mount: {x: 15, y: 23},
     img: "img/ships/Skate.png",
+    hardpoints: [
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 15, y: 14},
+      }
+    ],
   },
 ];
 
@@ -213,6 +306,8 @@ const ASSET_PATHS = [
   "img/engines/Thruster_reverse.png",
   "img/engines/TurboThruster.png",
   "img/engines/TurboThruster_lit.png",
+  "img/weapons/Blaster.png",
+  "img/weapons/Blaster Bolt.png",
   "img/stars/Star.png"
 ];
 
@@ -238,11 +333,15 @@ function preloadRawImages(paths) {
   );
 }
 
-// In-memory cache for baked static ship textures: (hull + engine + paintColor)
+// In-memory cache for baked static ship textures: (hull + engine + paintColor + weapons)
 const bakedTextureCache = new Map();
 
-function getBakedShipTexture(hull, engineData, paintColor) {
-  const cacheKey = `${hull.name}_${engineData.name}_${paintColor.name}`;
+function getBakedShipTexture(hull, engineData, paintColor, weapons = []) {
+  const weaponKey = weapons
+    .map((w) => `${w.weapon.name}_${w.hardpoint.location.x},${w.hardpoint.location.y}_${w.hardpoint.onTop}`)
+    .join(';');
+  const cacheKey = `${hull.name}_${engineData.name}_${paintColor.name}_${weaponKey}`;
+
   if (bakedTextureCache.has(cacheKey)) {
     return bakedTextureCache.get(cacheKey);
   }
@@ -253,16 +352,41 @@ function getBakedShipTexture(hull, engineData, paintColor) {
   const ex = hull.engine_mount.x - engineData.pivot.x;
   const ey = hull.engine_mount.y - engineData.pivot.y;
 
-  const canvasWidth = Math.max(hullImg.width, ex + engineImg.width);
-  const canvasHeight = Math.max(hullImg.height, ey + engineImg.height);
+  let minX = Math.min(0, ex);
+  let minY = Math.min(0, ey);
+  let maxX = Math.max(hullImg.width, ex + engineImg.width);
+  let maxY = Math.max(hullImg.height, ey + engineImg.height);
+
+  const weaponDrawList = weapons.map((slot) => {
+    const wImg = rawImages[slot.weapon.img];
+    const wx = slot.hardpoint.location.x - slot.weapon.attachmentPoint.x;
+    const wy = slot.hardpoint.location.y - slot.weapon.attachmentPoint.y;
+    minX = Math.min(minX, wx);
+    minY = Math.min(minY, wy);
+    maxX = Math.max(maxX, wx + wImg.width);
+    maxY = Math.max(maxY, wy + wImg.height);
+    return { img: wImg, x: wx, y: wy, onTop: slot.hardpoint.onTop };
+  });
+
+  const offsetX = -minX;
+  const offsetY = -minY;
+  const canvasWidth = maxX - minX;
+  const canvasHeight = maxY - minY;
 
   const canvas = document.createElement('canvas');
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
   const ctx = canvas.getContext('2d');
 
-  // Draw hull image at (0, 0)
-  ctx.drawImage(hullImg, 0, 0);
+  // 1. Draw weapons with onTop === false (underneath hull)
+  for (const w of weaponDrawList) {
+    if (!w.onTop) {
+      ctx.drawImage(w.img, w.x + offsetX, w.y + offsetY);
+    }
+  }
+
+  // 2. Draw hull image at (offsetX, offsetY)
+  ctx.drawImage(hullImg, offsetX, offsetY);
 
   // Replace exact matching red pixels (RGB: 212, 33, 33) with the selected paint color
   const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
@@ -280,23 +404,43 @@ function getBakedShipTexture(hull, engineData, paintColor) {
   }
   ctx.putImageData(imgData, 0, 0);
 
-  // Draw static engine on top at mount position
-  ctx.drawImage(engineImg, ex, ey);
+  // 3. Draw static engine on top at mount position
+  ctx.drawImage(engineImg, ex + offsetX, ey + offsetY);
+
+  // 4. Draw weapons with onTop === true (on top of hull and engine)
+  for (const w of weaponDrawList) {
+    if (w.onTop) {
+      ctx.drawImage(w.img, w.x + offsetX, w.y + offsetY);
+    }
+  }
 
   const texture = PIXI.Texture.from(canvas);
-  bakedTextureCache.set(cacheKey, texture);
-  return texture;
+  const result = { texture, offsetX, offsetY };
+  bakedTextureCache.set(cacheKey, result);
+  return result;
 }
 
-function buildShip(hullChoice, engineChoice, paintChoice) {
+let nextShipId = 1;
+
+function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
   const newShip = new PIXI.Container();
   const hull = hullChoice || randomChoice(HULLS_DATA);
   const engineData = engineChoice || randomChoice(ENGINES_DATA);
   const paintColor = paintChoice || randomChoice(FACTION_PAINTS);
 
-  // Bake static components (body + engine with custom paint color) into a single image texture
-  const bakedTexture = getBakedShipTexture(hull, engineData, paintColor);
-  const staticSprite = new PIXI.Sprite(bakedTexture);
+  // Default weapon setup: Light Blaster attached to default hardpoint
+  const weapons = weaponsChoice || [
+    {
+      weapon: WEAPONS_DATA.light_blaster,
+      hardpoint: hull.hardpoints[0],
+      lastFired: 0,
+    }
+  ];
+
+  // Bake static components (body + engine + weapons with custom paint color) into a single image texture
+  const baked = getBakedShipTexture(hull, engineData, paintColor, weapons);
+  const staticSprite = new PIXI.Sprite(baked.texture);
+  staticSprite.position.set(-baked.offsetX, -baked.offsetY);
   newShip.addChild(staticSprite);
   newShip.pivot.set(hull.pivot.x, hull.pivot.y);
 
@@ -322,12 +466,14 @@ function buildShip(hullChoice, engineChoice, paintChoice) {
   const accel = (engineData.thrust * 1000) / (hull.mass + engineData.mass); // m/s/s
 
   const newData = {
+    id: nextShipId++,
     vx: 0,
     vy: 0,
     accel,
     hull,
     engine: engineData,
     paint: paintColor,
+    weapons,
     staticSprite,
     engineLitSprite: engineLit,
     engineReverseSprite: engineReverse,
@@ -337,6 +483,7 @@ function buildShip(hullChoice, engineChoice, paintChoice) {
 }
 
 const stars = [];
+const projectiles = [];
 
 function checkSpeed(vx, vy, speedLimit) {
   const SPEED = Math.sqrt(vx * vx + vy * vy);
@@ -366,6 +513,68 @@ function applyReverseThrust(ship, delta, accelLimit) {
   const vy = ship.data.vy + dvy;
 
   return checkSpeed(vx, vy, speedLimit);
+}
+
+function spawnProjectile(ship, weaponSlot) {
+  const weapon = weaponSlot.weapon;
+  const hardpoint = weaponSlot.hardpoint;
+  const projData = weapon.projectile;
+
+  // Local coordinates of the projectile origin relative to hull (0, 0)
+  const localX = hardpoint.location.x - weapon.attachmentPoint.x + weapon.projectileOrigin.x;
+  const localY = hardpoint.location.y - weapon.attachmentPoint.y + weapon.projectileOrigin.y;
+
+  // Transform local point to world/stage coordinates
+  const rotation = ship.sprite.rotation;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const relX = localX - ship.sprite.pivot.x;
+  const relY = localY - ship.sprite.pivot.y;
+  const spawnX = ship.sprite.x + (relX * cos - relY * sin);
+  const spawnY = ship.sprite.y + (relX * sin + relY * cos);
+
+  // Velocity: parent ship velocity + weapon velocity in facing direction
+  const muzzleSpeed = projData.speed;
+  const dirX = Math.sin(rotation);
+  const dirY = -Math.cos(rotation);
+  const vx = ship.data.vx + muzzleSpeed * dirX;
+  const vy = ship.data.vy + muzzleSpeed * dirY;
+
+  // Create projectile sprite
+  const sprite = new PIXI.Sprite(PIXI.Assets.get(projData.img));
+  sprite.pivot.set(projData.pivot.x, projData.pivot.y);
+  sprite.position.set(spawnX, spawnY);
+  sprite.rotation = rotation;
+
+  // Layering: determine whether projectile renders above or below parent ship
+  const shipIndex = app.stage.getChildIndex(ship.sprite);
+  if (hardpoint.onTop) {
+    app.stage.addChildAt(sprite, shipIndex + 1);
+  } else {
+    app.stage.addChildAt(sprite, shipIndex);
+  }
+
+  projectiles.push({
+    sprite,
+    vx,
+    vy,
+    shipId: ship.data.id,
+    originTime: performance.now(),
+    lifetime: projData.lifetime,
+  });
+}
+
+function fireShipWeapons(ship) {
+  const now = performance.now();
+  if (!ship.data.weapons) return;
+
+  for (const weaponSlot of ship.data.weapons) {
+    const cooldownMs = 1000 / weaponSlot.weapon.fireRate;
+    if (now - weaponSlot.lastFired >= cooldownMs) {
+      weaponSlot.lastFired = now;
+      spawnProjectile(ship, weaponSlot);
+    }
+  }
 }
 
 function setup() {
@@ -403,7 +612,7 @@ function setup() {
     updateShipCount();
   }
 
-  // Initial NPC ship with a random faction paint job
+  // Initial NPC ship with a random faction paint job and default blaster
   spawnNpcShips(1);
 
   if (spawnBtn) {
@@ -413,13 +622,19 @@ function setup() {
     });
   }
 
-  // Player ship starts with the default Crimson Vanguard paint
+  // Player ship starts with the default Crimson Vanguard paint and default blaster
   const playerShip = buildShip(null, null, FACTION_PAINTS[0]);
   playerShip.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
   app.stage.addChild(playerShip.sprite);
 
   function updatePlayerShipConfig({ hull, engine, paint }) {
-    if (hull) playerShip.data.hull = hull;
+    if (hull) {
+      playerShip.data.hull = hull;
+      // Re-assign default weapon to the new hull's default hardpoint
+      if (playerShip.data.weapons && playerShip.data.weapons.length > 0) {
+        playerShip.data.weapons[0].hardpoint = hull.hardpoints[0];
+      }
+    }
     if (engine) playerShip.data.engine = engine;
     if (paint) playerShip.data.paint = paint;
 
@@ -433,9 +648,10 @@ function setup() {
     // Update ship container pivot for new hull center
     playerShip.sprite.pivot.set(currentHull.pivot.x, currentHull.pivot.y);
 
-    // Update baked static components (body + engine + paint)
-    const newBakedTexture = getBakedShipTexture(currentHull, currentEngine, currentPaint);
-    playerShip.data.staticSprite.texture = newBakedTexture;
+    // Update baked static components (body + engine + paint + weapons)
+    const baked = getBakedShipTexture(currentHull, currentEngine, currentPaint, playerShip.data.weapons);
+    playerShip.data.staticSprite.texture = baked.texture;
+    playerShip.data.staticSprite.position.set(-baked.offsetX, -baked.offsetY);
 
     // Update lit flame sprite
     const litTexture = PIXI.Assets.get(currentEngine.imgLit);
@@ -556,6 +772,26 @@ function setup() {
       }
     } else if (playerShip.data.engine.reversible && playerShip.data.engineReverseSprite && playerShip.data.engineReverseSprite.visible) {
       playerShip.data.engineReverseSprite.visible = false;
+    }
+
+    // Fire weapons when spacebar is engaged
+    if (isFiring()) {
+      fireShipWeapons(playerShip);
+    }
+
+    // Update active projectiles
+    const now = performance.now();
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+      const proj = projectiles[i];
+      if ((now - proj.originTime) / 1000 >= proj.lifetime) {
+        app.stage.removeChild(proj.sprite);
+        proj.sprite.destroy();
+        projectiles.splice(i, 1);
+        continue;
+      }
+
+      proj.sprite.x += (proj.vx - playerShip.data.vx) * delta * (60 / 1000);
+      proj.sprite.y += (proj.vy - playerShip.data.vy) * delta * (60 / 1000);
     }
 
     for (var i = 0; i < ships.length; i++) {
