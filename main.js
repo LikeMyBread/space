@@ -47,7 +47,7 @@ const GAME_HEIGHT = 600;
 const OFFSCREEN = 100;
 const PIXELS_PER_METER = 1;
 const TURN_RATE = 0.04; // rad/frame
-const ACCEL_LIMIT = 10; // seconds
+const ACCEL_LIMIT = 5; // seconds
 const FORMATION_DISTANCE = 100; // px
 
 // Radar exponential display constants and mapping function
