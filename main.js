@@ -611,7 +611,10 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
 
   const accel = (engineData.thrust * 1000) / (hull.mass + engineData.mass); // m/s/s
   const maxSpeed = accel * ACCEL_LIMIT; // px/s
-  const timeToTurnAround = Math.PI / (TURN_RATE * 60); // seconds to turn 180 degrees
+  const baseAccel = 10.638; // standard thruster on 20000kg hull + 3500kg engine (~10.64 m/s^2)
+  const agilityFactor = Math.sqrt(accel / baseAccel);
+  const turnRate = TURN_RATE * Math.max(1.0, Math.min(2.0, agilityFactor));
+  const timeToTurnAround = Math.PI / (turnRate * 60); // seconds to turn 180 degrees
   const distanceRequiredToStop = (maxSpeed * maxSpeed) / (2 * accel); // px
   const stoppingDistance = (maxSpeed * timeToTurnAround) + distanceRequiredToStop; // px
 
@@ -620,6 +623,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     vx: 0,
     vy: 0,
     accel,
+    turnRate,
     maxSpeed,
     timeToTurnAround,
     distanceRequiredToStop,
@@ -1459,7 +1463,9 @@ function setup() {
       inRange = t <= lifetime * 1.15;
     } else {
       const distSq = dx * dx + dy * dy;
-      inRange = distSq <= maxRange * maxRange;
+      // If no valid intercept solution exists (e.g. crossing faster than muzzle speed),
+      // only consider in-range at point-blank range (<= 15px) where collision is immediate.
+      inRange = distSq <= 15 * 15;
     }
 
     const aimAngle = Math.atan2(aimX, -aimY);
@@ -1467,13 +1473,18 @@ function setup() {
   }
 
   function aimAndShoot(ship, target) {
-    const { aimAngle, inRange } = getLeadSolution(ship, target);
+    const { aimAngle, inRange, interceptTime } = getLeadSolution(ship, target);
+    const shipTurnRate = (ship.data && ship.data.turnRate) ? ship.data.turnRate : TURN_RATE;
     const angleDiff = normalizeAngle(aimAngle - ship.sprite.rotation);
 
-    ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+    ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + Math.max(-shipTurnRate, Math.min(shipTurnRate, angleDiff)));
+
+    // Recompute angle difference after turning this frame
+    const remainingDiff = Math.abs(normalizeAngle(aimAngle - ship.sprite.rotation));
 
     // Bias toward firing even if not perfectly aligned (within ~43 degrees / 0.75 rad) to increase hits
-    if (inRange && Math.abs(angleDiff) < 0.75) {
+    // Only fire if there is a valid ballistic intercept solution (or target is point-blank)
+    if (inRange && (interceptTime > 0 || !interceptTime) && (remainingDiff < 0.75 || Math.abs(angleDiff) < 0.75)) {
       fireShipWeapons(ship);
     }
     return { aimAngle, angleDiff, inRange };
@@ -1546,7 +1557,8 @@ function setup() {
       if (hostileCount > 0 && (fleeX !== 0 || fleeY !== 0)) {
         const fleeAngle = Math.atan2(fleeX, -fleeY);
         const angleDiff = normalizeAngle(fleeAngle - shipSprite.rotation);
-        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+        const shipTurnRate = shipData.turnRate || TURN_RATE;
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-shipTurnRate, Math.min(shipTurnRate, angleDiff)));
 
         if (Math.abs(angleDiff) < 0.5) {
           const step = Math.min(dvMax, accel * dt);
@@ -1616,13 +1628,27 @@ function setup() {
 
       const inCone = coneAngleDiff <= Math.PI / 4; // 90 degree cone (+/- 45 deg)
       const inRange = dist <= weaponRange * 0.95 && dist >= 22;
-      const inRearPosition = inCone && inRange;
+
+      // Rate at which ship is closing directly toward target
+      const relVx = shipData.vx - target.data.vx;
+      const relVy = shipData.vy - target.data.vy;
+      const closingSpeed = (dx * relVx + dy * relVy) / Math.max(1, dist);
+      // Non-reversible ships cannot brake while facing target, so disengage position hold if closing too fast
+      const closingTooFast = !shipData.engine.reversible && (closingSpeed > 15);
+      const inRearPosition = inCone && inRange && !closingTooFast;
 
       if (inRearPosition) {
-        // Maintain position: match velocity with target + subtle range adjustment
-        const distCorrection = dist > 50 ? 10 : (dist < 32 ? -10 : 0);
-        const desiredVx = target.data.vx + (dx / Math.max(1, dist)) * distCorrection;
-        const desiredVy = target.data.vy + (dy / Math.max(1, dist)) * distCorrection;
+        // Maintain position: match velocity with target + subtle correction toward 45px rear pocket
+        const standoff = 45;
+        const targetRearX = target.sprite.x + rearX * standoff;
+        const targetRearY = target.sprite.y + rearY * standoff;
+        const wpDx = targetRearX - shipSprite.x;
+        const wpDy = targetRearY - shipSprite.y;
+        const wpDist = Math.sqrt(wpDx * wpDx + wpDy * wpDy);
+
+        const corrSpeed = Math.min(25, wpDist * 1.2);
+        const desiredVx = target.data.vx + (wpDist > 0 ? (wpDx / wpDist) * corrSpeed : 0);
+        const desiredVy = target.data.vy + (wpDist > 0 ? (wpDy / wpDist) * corrSpeed : 0);
 
         const dvX = desiredVx - shipData.vx;
         const dvY = desiredVy - shipData.vy;
@@ -1660,15 +1686,22 @@ function setup() {
         const wpDy = wpY - shipSprite.y;
         const wpDist = Math.sqrt(wpDx * wpDx + wpDy * wpDy);
 
-        const desiredVx = target.data.vx + (wpDist > 0 ? (wpDx / wpDist) * maxSpeed : 0);
-        const desiredVy = target.data.vy + (wpDist > 0 ? (wpDy / wpDist) * maxSpeed : 0);
+        // Safe approach speed scales smoothly with distance to prevent overshooting
+        const safeApproachSpeed = Math.min(
+          maxSpeed,
+          Math.max(20, Math.sqrt(2 * accel * Math.max(0, wpDist - 8)))
+        );
+
+        const desiredVx = target.data.vx + (wpDist > 0 ? (wpDx / wpDist) * safeApproachSpeed : 0);
+        const desiredVy = target.data.vy + (wpDist > 0 ? (wpDy / wpDist) * safeApproachSpeed : 0);
 
         const dvX = desiredVx - shipData.vx;
         const dvY = desiredVy - shipData.vy;
 
         const courseAngle = Math.atan2(dvX, -dvY);
+        const shipTurnRate = shipData.turnRate || TURN_RATE;
         const angleDiff = normalizeAngle(courseAngle - shipSprite.rotation);
-        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-shipTurnRate, Math.min(shipTurnRate, angleDiff)));
 
         if (Math.abs(angleDiff) < 0.4) {
           const step = Math.min(dvMax, accel * dt);
@@ -1686,9 +1719,9 @@ function setup() {
 
         // Opportunistic shot if serendipitously aligned while in range (biased toward firing)
         if (dist <= weaponRange) {
-          const { aimAngle, inRange: leadInRange } = getLeadSolution(ship, target);
+          const { aimAngle, inRange: leadInRange, interceptTime } = getLeadSolution(ship, target);
           const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
-          if (leadInRange && aimDiff < 0.75) {
+          if (leadInRange && (interceptTime > 0 || !interceptTime) && aimDiff < 0.75) {
             fireShipWeapons(ship);
           }
         }
@@ -1730,8 +1763,9 @@ function setup() {
         const dvY = desiredVy - shipData.vy;
 
         const courseAngle = Math.atan2(dvX, -dvY);
+        const shipTurnRate = shipData.turnRate || TURN_RATE;
         const angleDiff = normalizeAngle(courseAngle - shipSprite.rotation);
-        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-shipTurnRate, Math.min(shipTurnRate, angleDiff)));
 
         if (Math.abs(angleDiff) < 0.4) {
           const step = Math.min(dvMax, accel * dt);
@@ -1748,9 +1782,9 @@ function setup() {
         }
 
         if (inRange) {
-          const { aimAngle, inRange: leadInRange } = getLeadSolution(ship, target);
+          const { aimAngle, inRange: leadInRange, interceptTime } = getLeadSolution(ship, target);
           const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
-          if (leadInRange && aimDiff < 0.75) {
+          if (leadInRange && (interceptTime > 0 || !interceptTime) && aimDiff < 0.75) {
             fireShipWeapons(ship);
           }
         }
@@ -1787,10 +1821,13 @@ function setup() {
     const currentEngine = playerShip.data.engine;
     const currentPaint = playerShip.data.paint;
 
-    // Recalculate acceleration and stopping distance metrics
+    // Recalculate acceleration, turn rate, and stopping distance metrics
     playerShip.data.accel = (currentEngine.thrust * 1000) / (currentHull.mass + currentEngine.mass);
+    const baseAccel = 10.638;
+    const agilityFactor = Math.sqrt(playerShip.data.accel / baseAccel);
+    playerShip.data.turnRate = TURN_RATE * Math.max(1.0, Math.min(2.0, agilityFactor));
     const maxSpeed = playerShip.data.accel * ACCEL_LIMIT;
-    const timeToTurnAround = Math.PI / (TURN_RATE * 60);
+    const timeToTurnAround = Math.PI / (playerShip.data.turnRate * 60);
     const distanceRequiredToStop = (maxSpeed * maxSpeed) / (2 * playerShip.data.accel);
     playerShip.data.maxSpeed = maxSpeed;
     playerShip.data.timeToTurnAround = timeToTurnAround;
@@ -2092,6 +2129,7 @@ function setup() {
     window.spawnNpcShips = spawnNpcShips;
     window.ships = ships;
     window.derelictShip = derelictShip;
+    window.buildShip = buildShip;
   }
 
   if (targetIdBadge) {
@@ -2614,12 +2652,13 @@ function setup() {
         playerShip.data.vy = 0;
       }
     } else {
+      const playerTurnRate = playerShip.data.turnRate || TURN_RATE;
       if (isTurningLeft()) {
-        playerShip.sprite.rotation -= TURN_RATE;
+        playerShip.sprite.rotation -= playerTurnRate;
       }
 
       if (isTurningRight()) {
-        playerShip.sprite.rotation += TURN_RATE;
+        playerShip.sprite.rotation += playerTurnRate;
       }
 
       if (isThrusting()) {
@@ -2835,7 +2874,8 @@ function setup() {
       const useReverse = shipData.engine.reversible && (diffReverse < diffForward - 0.2);
 
       const diffAngle = useReverse ? diffReverse : diffForward;
-      const turnDist = (diffAngle / TURN_RATE) * dt * relSpeed;
+      const shipTurnRate = shipData.turnRate || TURN_RATE;
+      const turnDist = (diffAngle / shipTurnRate) * dt * relSpeed;
       const stopDist = (relSpeed * relSpeed) / (2 * shipData.accel);
       const currentStopDist = turnDist + stopDist;
       const brakeThreshold = Math.max(18, currentStopDist * 1.05 + 5);
@@ -2871,7 +2911,7 @@ function setup() {
         const dist = Math.sqrt(distSq);
         // Safe approach speed scales down with distance and respects maximum turn rate
         // to prevent overrunning the ship's ability to steer toward the destination.
-        const turnLimitedSpeed = Math.max(25, dist * (TURN_RATE / dt) * 0.5);
+        const turnLimitedSpeed = Math.max(25, dist * (shipTurnRate / dt) * 0.5);
         const safeApproachSpeed = Math.min(
           shipData.maxSpeed,
           Math.sqrt(2 * shipData.accel * Math.max(0, dist - 12)),
@@ -2891,7 +2931,7 @@ function setup() {
           // 1. Turn to face toward the velocity correction vector
           const targetAngle = Math.PI / 2 + Math.atan2(dvY, dvX);
           let angleDiff = normalizeAngle(targetAngle - shipSprite.rotation);
-          shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, TURN_RATE), -TURN_RATE));
+          shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, shipTurnRate), -shipTurnRate));
 
           // 2. Once roughly facing the correction direction, apply forward thrust under own power
           if (Math.abs(angleDiff) < 0.35) {
@@ -2923,7 +2963,7 @@ function setup() {
       } else if (shipData.aiState === 'BRAKE') {
         const targetAngle = useReverse ? revHeading : targetForceAngle;
         let angleDiff = normalizeAngle(targetAngle - shipSprite.rotation);
-        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, TURN_RATE), -TURN_RATE));
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, shipTurnRate), -shipTurnRate));
 
         if (Math.abs(angleDiff) < 0.35) {
           const heading = shipSprite.rotation;
@@ -2967,7 +3007,7 @@ function setup() {
         // Matched velocity: turn to face the same direction as the player to follow their lead
         const targetAngle = playerShip.sprite.rotation;
         let angleDiff = normalizeAngle(targetAngle - shipSprite.rotation);
-        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, TURN_RATE), -TURN_RATE));
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, shipTurnRate), -shipTurnRate));
 
         // When flying in formation, ships only maneuver along their physical heading under their own power.
         // If one frame of acceleration would overshoot their velocity target, apply less thrust to hit it exactly.
