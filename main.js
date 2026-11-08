@@ -1200,7 +1200,7 @@ function setup() {
       // Draw tactical targeting bracket if this ship is the current target
       if (!isPlayer && currentTarget && targetShip.data && currentTarget.data && targetShip.data.id === currentTarget.data.id) {
         radarCtx.strokeStyle = '#38bdf8';
-        radarCtx.lineWidth = 1.5;
+        radarCtx.lineWidth = 2;
         const b = 6;
         radarCtx.beginPath();
         // Top-left
@@ -1449,8 +1449,8 @@ function setup() {
       return;
     }
 
-    const tx = target.sprite.x;
-    const ty = target.sprite.y;
+    const tx = Math.round(target.sprite.x);
+    const ty = Math.round(target.sprite.y);
 
     // Do not render brackets if the target ship is completely off-screen
     const margin = 50;
@@ -1482,7 +1482,7 @@ function setup() {
     targetBracketGraphics.lineTo(tx - b, ty + b);
     targetBracketGraphics.lineTo(tx - b, ty + b - arm);
 
-    targetBracketGraphics.stroke({ width: 1.5, color: '#38bdf8' });
+    targetBracketGraphics.stroke({ width: 2, color: '#38bdf8' });
   }
 
   let fpsTimer = 0;
