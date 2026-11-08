@@ -5,6 +5,8 @@ const fpsDisplay = document.getElementById("fps-counter");
 const shipCountDisplay = document.getElementById("ship-count");
 const spawnBtn = document.getElementById("spawn-btn");
 const spawnTenBtn = document.getElementById("spawn-ten-btn");
+const fightBtn = document.getElementById("fight-btn");
+const godModeBtn = document.getElementById("god-mode-btn");
 const bodySelect = document.getElementById("body-select");
 const engineSelect = document.getElementById("engine-select");
 const paintSelect = document.getElementById("paint-select");
@@ -610,6 +612,9 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     bakedOffsetX: baked.offsetX,
     bakedOffsetY: baked.offsetY,
     aiState: 'APPROACH',
+    combatStrategy: null,
+    combatTarget: null,
+    isRetreating: false,
     formationLeader: null,
     formationSlot: null,
     formationOffset: { x: 0, y: FORMATION_DISTANCE },
@@ -880,6 +885,8 @@ function setup() {
   playerShip.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
   app.stage.addChild(playerShip.sprite);
 
+  let isFighting = false;
+  let isGodMode = false;
   let prevStatusKey = null;
 
   function updatePlayerStatusUI() {
@@ -905,7 +912,7 @@ function setup() {
     const engineName = data.engine ? data.engine.name : '';
     const maxSpeed = Math.round(data.maxSpeed || 0);
 
-    const statusKey = `${Math.ceil(currentShield)}_${shieldPct.toFixed(1)}_${Math.ceil(currentArmor)}_${armorPct.toFixed(1)}_${Math.round(currentEnergy)}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}`;
+    const statusKey = `${Math.ceil(currentShield)}_${shieldPct.toFixed(1)}_${Math.ceil(currentArmor)}_${armorPct.toFixed(1)}_${Math.round(currentEnergy)}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}_${isGodMode}`;
     if (statusKey === prevStatusKey) return;
     prevStatusKey = statusKey;
 
@@ -945,7 +952,10 @@ function setup() {
 
     const playerStatusBadge = document.getElementById("player-status-badge");
     if (playerStatusBadge) {
-      if (data.isDestroyed) {
+      if (isGodMode) {
+        playerStatusBadge.textContent = 'GOD MODE';
+        playerStatusBadge.className = 'status-badge status-warning';
+      } else if (data.isDestroyed) {
         playerStatusBadge.textContent = 'DESTROYED';
         playerStatusBadge.className = 'status-badge status-critical';
       } else if (data.isDisabled) {
@@ -1074,14 +1084,20 @@ function setup() {
     for (let i = 0; i < count; i++) {
       const npc = buildShip();
       npc.sprite.position.set(GAME_WIDTH * Math.random(), GAME_HEIGHT * Math.random());
+      if (isFighting) {
+        npc.data.combatStrategy = Math.random() < 0.5 ? 'turn_fight' : 'joust';
+        npc.data.aiState = 'COMBAT';
+      }
       ships.push(npc);
       app.stage.addChild(npc.sprite);
     }
     // Keep shield bubbles and targeting bracket HUD overlay on top of all ships
     app.stage.addChild(shieldGraphics);
     app.stage.addChild(targetBracketGraphics);
-    // Form the fleet: assign each ship a position in the hexagonal grid based on arbitrary ordering
-    formFleet(playerShip, ships);
+    // Form the fleet if not in combat mode
+    if (!isFighting) {
+      formFleet(playerShip, ships);
+    }
     updateShipCount();
   }
 
@@ -1105,9 +1121,455 @@ function setup() {
   const reformBtn = document.getElementById("reform-btn");
   if (reformBtn) {
     reformBtn.addEventListener('click', (event) => {
+      isFighting = false;
+      if (typeof window !== 'undefined') window.isFighting = isFighting;
+      if (fightBtn) fightBtn.classList.remove('active');
+      for (const ship of ships) {
+        if (ship && ship.data) {
+          ship.data.combatStrategy = null;
+          ship.data.combatTarget = null;
+          ship.data.isRetreating = false;
+          ship.data.aiState = 'APPROACH';
+        }
+      }
       formFleet(playerShip, ships);
       event.target.blur();
     });
+  }
+
+  if (fightBtn) {
+    fightBtn.addEventListener('click', (event) => {
+      isFighting = true;
+      if (typeof window !== 'undefined') window.isFighting = isFighting;
+      fightBtn.classList.add('active');
+
+      const allCombatants = [playerShip, derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed);
+      const activeNpcs = [derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed && !s.data.isDisabled);
+
+      for (const npc of activeNpcs) {
+        if (!npc.data.combatStrategy) {
+          npc.data.combatStrategy = Math.random() < 0.5 ? 'turn_fight' : 'joust';
+        }
+        npc.data.aiState = 'COMBAT';
+        npc.data.isDerelict = false;
+        npc.data.isRetreating = false;
+        npc.data.combatTarget = findNearestHostile(npc, allCombatants);
+      }
+      event.target.blur();
+    });
+  }
+
+  if (godModeBtn) {
+    godModeBtn.addEventListener('click', (event) => {
+      isGodMode = !isGodMode;
+      if (typeof window !== 'undefined') window.isGodMode = isGodMode;
+      if (isGodMode) {
+        godModeBtn.textContent = 'God Mode: ON';
+        godModeBtn.classList.add('active');
+        playerShip.data.shield = playerShip.data.maxShield || 10;
+        playerShip.data.hullHealth = playerShip.data.maxHullHealth || 10;
+        playerShip.data.armor = playerShip.data.maxArmor || 10;
+        playerShip.data.isDisabled = false;
+        playerShip.data.isDestroyed = false;
+        updatePlayerStatusUI();
+      } else {
+        godModeBtn.textContent = 'God Mode: OFF';
+        godModeBtn.classList.remove('active');
+        updatePlayerStatusUI();
+      }
+      event.target.blur();
+    });
+  }
+
+  function findNearestHostile(ship, allCombatants) {
+    if (!ship || !ship.data || !ship.data.paint) return null;
+    const myColor = ship.data.paint.name;
+    let nearestTarget = null;
+    let nearestDistSq = Infinity;
+
+    // First pass: active hostile ships (not disabled, not destroyed)
+    for (let i = 0; i < allCombatants.length; i++) {
+      const cand = allCombatants[i];
+      if (!cand || cand === ship || !cand.data || !cand.sprite || cand.data.isDestroyed || cand.data.isDisabled) continue;
+      if (!cand.data.paint || cand.data.paint.name === myColor) continue;
+
+      const dx = cand.sprite.x - ship.sprite.x;
+      const dy = cand.sprite.y - ship.sprite.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < nearestDistSq) {
+        nearestDistSq = distSq;
+        nearestTarget = cand;
+      }
+    }
+
+    // Second pass: if no active enemies, check disabled hostiles that aren't destroyed
+    if (!nearestTarget) {
+      for (let i = 0; i < allCombatants.length; i++) {
+        const cand = allCombatants[i];
+        if (!cand || cand === ship || !cand.data || !cand.sprite || cand.data.isDestroyed) continue;
+        if (!cand.data.paint || cand.data.paint.name === myColor) continue;
+
+        const dx = cand.sprite.x - ship.sprite.x;
+        const dy = cand.sprite.y - ship.sprite.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < nearestDistSq) {
+          nearestDistSq = distSq;
+          nearestTarget = cand;
+        }
+      }
+    }
+
+    return nearestTarget;
+  }
+
+  function getLeadSolution(shooter, target) {
+    const weapon = (shooter.data.weapons && shooter.data.weapons[0] && shooter.data.weapons[0].weapon)
+      ? shooter.data.weapons[0].weapon
+      : WEAPONS_DATA.light_blaster;
+    const speed = weapon.projectile.speed;
+    const lifetime = weapon.projectile.lifetime;
+    const maxRange = speed * lifetime;
+
+    const dx = target.sprite.x - shooter.sprite.x;
+    const dy = target.sprite.y - shooter.sprite.y;
+    const relVx = target.data.vx - shooter.data.vx;
+    const relVy = target.data.vy - shooter.data.vy;
+
+    const a = (relVx * relVx + relVy * relVy) - speed * speed;
+    const b = 2 * (dx * relVx + dy * relVy);
+    const c = dx * dx + dy * dy;
+
+    let t = -1;
+    const disc = b * b - 4 * a * c;
+
+    if (Math.abs(a) < 1e-6) {
+      if (Math.abs(b) > 1e-6) {
+        const root = -c / b;
+        if (root > 0) t = root;
+      }
+    } else if (disc >= 0) {
+      const sqrtDisc = Math.sqrt(disc);
+      const t1 = (-b - sqrtDisc) / (2 * a);
+      const t2 = (-b + sqrtDisc) / (2 * a);
+
+      if (t1 > 0 && t2 > 0) t = Math.min(t1, t2);
+      else if (t1 > 0) t = t1;
+      else if (t2 > 0) t = t2;
+    }
+
+    let aimX = dx;
+    let aimY = dy;
+    let inRange = false;
+
+    if (t > 0) {
+      aimX = dx + relVx * t;
+      aimY = dy + relVy * t;
+      inRange = t <= lifetime * 1.15;
+    } else {
+      const distSq = dx * dx + dy * dy;
+      inRange = distSq <= maxRange * maxRange;
+    }
+
+    const aimAngle = Math.atan2(aimX, -aimY);
+    return { aimAngle, inRange, interceptTime: t, maxRange };
+  }
+
+  function aimAndShoot(ship, target) {
+    const { aimAngle, inRange } = getLeadSolution(ship, target);
+    const angleDiff = normalizeAngle(aimAngle - ship.sprite.rotation);
+
+    ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+
+    if (inRange && Math.abs(angleDiff) < 0.25) {
+      fireShipWeapons(ship);
+    }
+    return { aimAngle, angleDiff, inRange };
+  }
+
+  function updateNpcCombat(ship, delta, dt, allCombatants) {
+    if (!ship || !ship.data || !ship.sprite || ship.data.isDestroyed) return;
+    const shipData = ship.data;
+    const shipSprite = ship.sprite;
+
+    const maxA = shipData.maxHullHealth || shipData.maxArmor || 10;
+    if (shipData.hullHealth <= maxA * 0.1) {
+      shipData.isDisabled = true;
+      shipData.aiState = 'DISABLED';
+    }
+
+    if (shipData.isDisabled) {
+      if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+      if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+
+      const damping = Math.pow(0.95, delta);
+      shipData.vx *= damping;
+      shipData.vy *= damping;
+      if (shipData.vx * shipData.vx + shipData.vy * shipData.vy < 0.01) {
+        shipData.vx = 0;
+        shipData.vy = 0;
+      }
+      shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
+      shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
+      return;
+    }
+
+    const maxSpeed = shipData.maxSpeed;
+    const accel = shipData.accel;
+    const dvMax = accel * dt;
+
+    // Retreat condition: shields fall below 25%
+    const maxShield = shipData.maxShield || 10;
+    if (!shipData.isRetreating && shipData.shield < maxShield * 0.25) {
+      shipData.isRetreating = true;
+    } else if (shipData.isRetreating && shipData.shield >= maxShield - 0.01) {
+      shipData.isRetreating = false;
+    }
+
+    // Retreating state: flee away from all hostile ships until shields fully recovered
+    if (shipData.isRetreating) {
+      shipData.aiState = 'RETREAT';
+      const myColor = shipData.paint ? shipData.paint.name : null;
+      let fleeX = 0;
+      let fleeY = 0;
+      let hostileCount = 0;
+
+      for (let j = 0; j < allCombatants.length; j++) {
+        const other = allCombatants[j];
+        if (!other || other === ship || !other.data || !other.sprite || other.data.isDestroyed) continue;
+        if (!other.data.paint || other.data.paint.name === myColor) continue;
+
+        const dx = shipSprite.x - other.sprite.x;
+        const dy = shipSprite.y - other.sprite.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > 0 && distSq < 1500 * 1500) {
+          const dist = Math.sqrt(distSq);
+          const weight = 1 / Math.max(10, dist);
+          fleeX += (dx / dist) * weight;
+          fleeY += (dy / dist) * weight;
+          hostileCount++;
+        }
+      }
+
+      if (hostileCount > 0 && (fleeX !== 0 || fleeY !== 0)) {
+        const fleeAngle = Math.atan2(fleeX, -fleeY);
+        const angleDiff = normalizeAngle(fleeAngle - shipSprite.rotation);
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+
+        if (Math.abs(angleDiff) < 0.5) {
+          const step = Math.min(dvMax, accel * dt);
+          const fwdX = Math.sin(shipSprite.rotation);
+          const fwdY = -Math.cos(shipSprite.rotation);
+          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+        }
+      } else {
+        if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+      }
+
+      shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
+      shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
+      return;
+    }
+
+    // Acquire or re-validate hostile target
+    let target = shipData.combatTarget;
+    if (!target || !target.sprite || !target.data || target.data.isDestroyed || (target.data.paint && shipData.paint && target.data.paint.name === shipData.paint.name)) {
+      target = findNearestHostile(ship, allCombatants);
+      shipData.combatTarget = target;
+    }
+
+    if (!target || !target.sprite) {
+      if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+      if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+      shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
+      shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
+      return;
+    }
+
+    if (!shipData.combatStrategy) {
+      shipData.combatStrategy = Math.random() < 0.5 ? 'turn_fight' : 'joust';
+    }
+
+    const dx = target.sprite.x - shipSprite.x;
+    const dy = target.sprite.y - shipSprite.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    const weapon = (shipData.weapons && shipData.weapons[0] && shipData.weapons[0].weapon)
+      ? shipData.weapons[0].weapon
+      : WEAPONS_DATA.light_blaster;
+    const weaponSpeed = weapon.projectile.speed;
+    const weaponLifetime = weapon.projectile.lifetime;
+    const weaponRange = weaponSpeed * weaponLifetime;
+
+    if (shipData.combatStrategy === 'turn_fight') {
+      // === TURN FIGHT STRATEGY ===
+      // Reach position behind target as quickly as possible.
+      // Once within 90-degree rear cone, maintain position and shoot at target.
+      // If drifting too far or outside rear cone, turn and thrust to course back through cone.
+      const targetRot = target.sprite.rotation;
+      const rearX = -Math.sin(targetRot);
+      const rearY = Math.cos(targetRot);
+      const rearAngle = normalizeAngle(targetRot + Math.PI);
+
+      const fromTargetX = shipSprite.x - target.sprite.x;
+      const fromTargetY = shipSprite.y - target.sprite.y;
+      const bearingFromTarget = Math.atan2(fromTargetX, -fromTargetY);
+      const coneAngleDiff = Math.abs(normalizeAngle(bearingFromTarget - rearAngle));
+
+      const inCone = coneAngleDiff <= Math.PI / 4; // 90 degree cone (+/- 45 deg)
+      const inRange = dist <= weaponRange * 0.95 && dist >= 22;
+      const inRearPosition = inCone && inRange;
+
+      if (inRearPosition) {
+        // Maintain position: match velocity with target + subtle range adjustment
+        const distCorrection = dist > 50 ? 10 : (dist < 32 ? -10 : 0);
+        const desiredVx = target.data.vx + (dx / Math.max(1, dist)) * distCorrection;
+        const desiredVy = target.data.vy + (dy / Math.max(1, dist)) * distCorrection;
+
+        const dvX = desiredVx - shipData.vx;
+        const dvY = desiredVy - shipData.vy;
+
+        aimAndShoot(ship, target);
+
+        const fwdX = Math.sin(shipSprite.rotation);
+        const fwdY = -Math.cos(shipSprite.rotation);
+        const fwdDv = dvX * fwdX + dvY * fwdY;
+
+        if (fwdDv > 0.5) {
+          const step = Math.min(dvMax, fwdDv);
+          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        } else if (fwdDv < -0.5 && shipData.engine.reversible) {
+          const step = Math.min(dvMax, -fwdDv);
+          const clamped = checkSpeed(shipData.vx - step * fwdX, shipData.vy - step * fwdY, maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = true;
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        }
+      } else {
+        // Outside rear cone or drifted too far: turn and thrust toward course back through rear cone
+        const standoff = 45;
+        const wpX = target.sprite.x + rearX * standoff;
+        const wpY = target.sprite.y + rearY * standoff;
+        const wpDx = wpX - shipSprite.x;
+        const wpDy = wpY - shipSprite.y;
+        const wpDist = Math.sqrt(wpDx * wpDx + wpDy * wpDy);
+
+        const desiredVx = target.data.vx + (wpDist > 0 ? (wpDx / wpDist) * maxSpeed : 0);
+        const desiredVy = target.data.vy + (wpDist > 0 ? (wpDy / wpDist) * maxSpeed : 0);
+
+        const dvX = desiredVx - shipData.vx;
+        const dvY = desiredVy - shipData.vy;
+
+        const courseAngle = Math.atan2(dvX, -dvY);
+        const angleDiff = normalizeAngle(courseAngle - shipSprite.rotation);
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+
+        if (Math.abs(angleDiff) < 0.4) {
+          const step = Math.min(dvMax, accel * dt);
+          const fwdX = Math.sin(shipSprite.rotation);
+          const fwdY = -Math.cos(shipSprite.rotation);
+          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        }
+
+        // Opportunistic shot if serendipitously aligned while in range
+        if (dist <= weaponRange) {
+          const { aimAngle, inRange: leadInRange } = getLeadSolution(ship, target);
+          const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
+          if (leadInRange && aimDiff < 0.25) {
+            fireShipWeapons(ship);
+          }
+        }
+      }
+    } else {
+      // === JOUSTING STRATEGY ===
+      // Keep speed up, thrust toward opponent to pass as close as possible at max speed,
+      // turn and shoot while in range using shot leading, turn and thrust for next pass once out of range.
+      const inRange = dist <= weaponRange * 1.1;
+      const relVx = target.data.vx - shipData.vx;
+      const relVy = target.data.vy - shipData.vy;
+      const radialSpeed = (dx * relVx + dy * relVy) / Math.max(1, dist);
+      const isSeparating = radialSpeed > 5 && dist > weaponRange * 0.7;
+
+      if (inRange && !isSeparating) {
+        // High speed inbound / passing run: turn and shoot with shot leading
+        aimAndShoot(ship, target);
+
+        // Keep speed up
+        const curSpeedSq = shipData.vx * shipData.vx + shipData.vy * shipData.vy;
+        if (curSpeedSq < (maxSpeed * 0.9) * (maxSpeed * 0.9)) {
+          const fwdX = Math.sin(shipSprite.rotation);
+          const fwdY = -Math.cos(shipSprite.rotation);
+          const step = Math.min(dvMax, accel * dt);
+          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+        }
+        if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+      } else {
+        // Out of range or separating: turn and thrust toward opponent for another high speed pass
+        const desiredVx = (dx / Math.max(1, dist)) * maxSpeed;
+        const desiredVy = (dy / Math.max(1, dist)) * maxSpeed;
+
+        const dvX = desiredVx - shipData.vx;
+        const dvY = desiredVy - shipData.vy;
+
+        const courseAngle = Math.atan2(dvX, -dvY);
+        const angleDiff = normalizeAngle(courseAngle - shipSprite.rotation);
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+
+        if (Math.abs(angleDiff) < 0.4) {
+          const step = Math.min(dvMax, accel * dt);
+          const fwdX = Math.sin(shipSprite.rotation);
+          const fwdY = -Math.cos(shipSprite.rotation);
+          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        }
+
+        if (inRange) {
+          const { aimAngle, inRange: leadInRange } = getLeadSolution(ship, target);
+          const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
+          if (leadInRange && aimDiff < 0.25) {
+            fireShipWeapons(ship);
+          }
+        }
+      }
+    }
+
+    const clampedSpeed = checkSpeed(shipData.vx, shipData.vy, maxSpeed);
+    shipData.vx = clampedSpeed.vx;
+    shipData.vy = clampedSpeed.vy;
+
+    shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
+    shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
   }
 
   function updatePlayerShipConfig({ hull, engine, paint }) {
@@ -1275,6 +1737,22 @@ function setup() {
     window.RADAR_RINGS = RADAR_RINGS;
     window.RADAR_MAX_DIST = RADAR_MAX_DIST;
     window.gameLoop = gameLoop;
+    window.getLeadSolution = getLeadSolution;
+    window.aimAndShoot = aimAndShoot;
+    window.findNearestHostile = findNearestHostile;
+    window.updateNpcCombat = updateNpcCombat;
+    Object.defineProperty(window, 'isFighting', {
+      get: () => isFighting,
+      set: (val) => { isFighting = !!val; },
+      configurable: true,
+    });
+    Object.defineProperty(window, 'isGodMode', {
+      get: () => isGodMode,
+      set: (val) => { isGodMode = !!val; },
+      configurable: true,
+    });
+    window.playerShip = playerShip;
+    window.spawnNpcShips = spawnNpcShips;
   }
 
   if (targetIdBadge) {
@@ -1779,10 +2257,18 @@ function setup() {
     }
 
     // Check player ship disabled & destroyed state
-    const playerMaxArmor = playerShip.data.maxHullHealth || playerShip.data.maxArmor || 10;
-    if (playerShip.data.hullHealth <= playerMaxArmor * 0.1 && !playerShip.data.isDestroyed) {
-      playerShip.data.isDisabled = true;
-      playerShip.data.aiState = 'DISABLED';
+    if (isGodMode) {
+      playerShip.data.isDisabled = false;
+      playerShip.data.isDestroyed = false;
+      playerShip.data.shield = playerShip.data.maxShield || 10;
+      playerShip.data.hullHealth = playerShip.data.maxHullHealth || 10;
+      playerShip.data.armor = playerShip.data.maxArmor || 10;
+    } else {
+      const playerMaxArmor = playerShip.data.maxHullHealth || playerShip.data.maxArmor || 10;
+      if (playerShip.data.hullHealth <= playerMaxArmor * 0.1 && !playerShip.data.isDestroyed) {
+        playerShip.data.isDisabled = true;
+        playerShip.data.aiState = 'DISABLED';
+      }
     }
 
     if (playerShip.data.isDisabled || playerShip.data.isDestroyed) {
@@ -1873,6 +2359,15 @@ function setup() {
         const shieldRadius = (targetShip.data.hull && targetShip.data.hull.shieldRadius) ? targetShip.data.hull.shieldRadius : 20;
         const hullRadius = (targetShip.data.hull && targetShip.data.hull.hullRadius) ? targetShip.data.hull.hullRadius : 6;
         const hasShield = targetShip.data.shield > 0;
+
+        if (targetShip === playerShip && isGodMode) {
+          if (distSq <= shieldRadius * shieldRadius) {
+            targetShip.data.shieldHitTimer = 0.25;
+            hit = true;
+            break;
+          }
+          continue;
+        }
 
         if (hasShield) {
           if (distSq <= shieldRadius * shieldRadius) {
@@ -1973,6 +2468,11 @@ function setup() {
         // Relative motion tracking with camera
         shipSprite.x -= (playerShip.data.vx - shipData.vx) * delta * (60 / 1000) || 0;
         shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
+        continue;
+      }
+
+      if (isFighting) {
+        updateNpcCombat(ship, delta, delta * (60 / 1000), allShips);
         continue;
       }
 
@@ -2181,15 +2681,19 @@ function setup() {
       shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
     }
 
-    // Derelict ship simply floats in place: its position relative to camera tracks player motion
+    // Derelict ship
     if (derelictShip && !derelictShip.data.isDestroyed) {
-      const dMaxA = derelictShip.data.maxHullHealth || derelictShip.data.maxArmor || 10;
-      if (derelictShip.data.hullHealth <= dMaxA * 0.1) {
-        derelictShip.data.isDisabled = true;
-        derelictShip.data.aiState = 'DISABLED';
+      if (isFighting) {
+        updateNpcCombat(derelictShip, delta, delta * (60 / 1000), allShips);
+      } else {
+        const dMaxA = derelictShip.data.maxHullHealth || derelictShip.data.maxArmor || 10;
+        if (derelictShip.data.hullHealth <= dMaxA * 0.1) {
+          derelictShip.data.isDisabled = true;
+          derelictShip.data.aiState = 'DISABLED';
+        }
+        derelictShip.sprite.x -= playerShip.data.vx * delta * (60 / 1000) || 0;
+        derelictShip.sprite.y -= playerShip.data.vy * delta * (60 / 1000) || 0;
       }
-      derelictShip.sprite.x -= playerShip.data.vx * delta * (60 / 1000) || 0;
-      derelictShip.sprite.y -= playerShip.data.vy * delta * (60 / 1000) || 0;
     }
 
     for (var i = 0; i < stars.length; i++) {

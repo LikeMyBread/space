@@ -470,6 +470,39 @@
       transform: scale(0.98);
     }
 
+    .btn-fight {
+      background: #7f1d1d;
+      border-color: #ef4444;
+    }
+
+    .btn-fight:hover {
+      background: #991b1b;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-fight.active {
+      background: #dc2626;
+      border-color: #f87171;
+      box-shadow: 0 0 16px rgba(248, 113, 113, 0.6);
+    }
+
+    .btn-god {
+      background: #78350f;
+      border-color: #f59e0b;
+    }
+
+    .btn-god:hover {
+      background: #92400e;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    }
+
+    .btn-god.active {
+      background: #d97706;
+      border-color: #fbbf24;
+      box-shadow: 0 0 16px rgba(251, 191, 36, 0.6);
+      color: #ffffff;
+    }
+
     .stats-group {
       display: flex;
       gap: 12px;
@@ -706,6 +739,8 @@
         <button id="spawn-ten-btn" class="btn" type="button">Spawn 10 Ships</button>
         <button id="spawn-btn" class="btn" type="button">Spawn 1,000 Ships</button>
         <button id="reform-btn" class="btn" type="button">Re-form Fleet</button>
+        <button id="fight-btn" class="btn btn-fight" type="button">Fight!</button>
+        <button id="god-mode-btn" class="btn btn-god" type="button">God Mode: OFF</button>
       </div>
 
       <div class="stats-group">
