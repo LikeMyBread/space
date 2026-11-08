@@ -1608,8 +1608,8 @@ function setup() {
     if (shipData.combatStrategy === 'turn_fight') {
       // === TURN FIGHT STRATEGY ===
       // Reach position behind target at controlled approach speed.
-      // Once within 90-degree rear cone, maintain position and shoot at target.
-      // If drifting too far or outside rear cone, turn and thrust to course back through cone,
+      // Once anywhere behind the target ship, maintain position and shoot at target.
+      // If drifting into the front aspect or out of range, turn and thrust to course back behind the target,
       // resuming shooting as soon as back on course.
       const targetRot = target.sprite.rotation;
       const rearX = -Math.sin(targetRot);
@@ -1628,8 +1628,9 @@ function setup() {
       const bearingFromTarget = Math.atan2(fromTargetX, -fromTargetY);
       const coneAngleDiff = Math.abs(normalizeAngle(bearingFromTarget - rearAngle));
 
-      const inCone = coneAngleDiff <= Math.PI / 4; // 90 degree cone (+/- 45 deg)
-      const inRange = dist <= weaponRange * 0.95 && dist >= 22;
+      // Expand "in the pocket" angular zone to anywhere behind the target ship (180-degree rear hemisphere, +/- 90 deg)
+      const inCone = coneAngleDiff <= Math.PI / 2;
+      const inRange = dist <= weaponRange * 1.05 && dist >= 20;
       const inRearPosition = inCone && inRange;
 
       // Limit how quickly ships approach their target location to give ample time to get in/stay in position
