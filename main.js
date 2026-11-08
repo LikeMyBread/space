@@ -720,6 +720,23 @@ function formFleet(leader, followerShips, spacing = FORMATION_DISTANCE) {
 
 const stars = [];
 const projectiles = [];
+let starContainer = null;
+let projectileContainerUnder = null;
+let projectileContainerOver = null;
+
+function removeProjectile(proj) {
+  if (!proj) return;
+  if (proj.container && proj.particle) {
+    proj.container.removeParticle(proj.particle);
+  } else if (proj.sprite) {
+    if (typeof app !== 'undefined' && app && app.stage && typeof app.stage.removeChild === 'function') {
+      app.stage.removeChild(proj.sprite);
+    }
+    if (typeof proj.sprite.destroy === 'function') {
+      proj.sprite.destroy();
+    }
+  }
+}
 
 function checkSpeed(vx, vy, speedLimit) {
   const speedSq = vx * vx + vy * vy;
@@ -777,33 +794,82 @@ function spawnProjectile(ship, weaponSlot) {
   const vx = ship.data.vx + muzzleSpeed * dirX;
   const vy = ship.data.vy + muzzleSpeed * dirY;
 
-  // Create projectile sprite
-  const sprite = new PIXI.Sprite(PIXI.Assets.get(projData.img));
-  sprite.pivot.set(projData.pivot.x, projData.pivot.y);
-  sprite.position.set(spawnX, spawnY);
-  sprite.rotation = rotation;
-
-  // Layering: determine whether projectile renders above or below parent ship
-  const shipIndex = app.stage.getChildIndex(ship.sprite);
-  if (hardpoint.onTop) {
-    app.stage.addChildAt(sprite, shipIndex + 1);
-  } else {
-    app.stage.addChildAt(sprite, shipIndex);
-  }
-
   const spinSpeed = projData.rotation !== undefined ? projData.rotation : (projData.rotationSpeed !== undefined ? projData.rotationSpeed : 0.1);
+  const texture = (typeof PIXI !== 'undefined' && PIXI.Assets && typeof PIXI.Assets.get === 'function') ? PIXI.Assets.get(projData.img) : null;
+  const hasParticleSupport = typeof PIXI !== 'undefined' && typeof PIXI.ParticleContainer === 'function' && typeof PIXI.Particle === 'function';
+  const targetContainer = hardpoint.onTop ? projectileContainerOver : projectileContainerUnder;
 
-  projectiles.push({
-    sprite,
-    vx,
-    vy,
-    rotation: spinSpeed,
-    rotationSpeed: spinSpeed,
-    shipId: ship.data.id,
-    originTime: performance.now(),
-    lifetime: projData.lifetime,
-    damage: projData.damage !== undefined ? projData.damage : 1,
-  });
+  if (hasParticleSupport && targetContainer) {
+    const texW = (texture && texture.width) ? texture.width : 3;
+    const texH = (texture && texture.height) ? texture.height : 3;
+    const anchorX = projData.pivot ? (projData.pivot.x / texW) : 0.5;
+    const anchorY = projData.pivot ? (projData.pivot.y / texH) : 0.5;
+
+    const particle = new PIXI.Particle({
+      texture: texture,
+      x: spawnX,
+      y: spawnY,
+      rotation: rotation,
+      anchorX: anchorX,
+      anchorY: anchorY,
+    });
+
+    targetContainer.addParticle(particle);
+
+    projectiles.push({
+      particle,
+      sprite: particle,
+      container: targetContainer,
+      vx,
+      vy,
+      rotation: spinSpeed,
+      rotationSpeed: spinSpeed,
+      shipId: ship.data.id,
+      originTime: performance.now(),
+      lifetime: projData.lifetime,
+      damage: projData.damage !== undefined ? projData.damage : 1,
+    });
+  } else {
+    // Fallback if ParticleContainer is unavailable (e.g. headless unit tests)
+    const sprite = (typeof PIXI !== 'undefined' && typeof PIXI.Sprite === 'function') ? new PIXI.Sprite(texture) : { x: spawnX, y: spawnY, rotation };
+    if (sprite.pivot && typeof sprite.pivot.set === 'function') {
+      sprite.pivot.set(projData.pivot.x, projData.pivot.y);
+    }
+    if (sprite.position && typeof sprite.position.set === 'function') {
+      sprite.position.set(spawnX, spawnY);
+    } else {
+      sprite.x = spawnX;
+      sprite.y = spawnY;
+    }
+    sprite.rotation = rotation;
+
+    if (typeof app !== 'undefined' && app && app.stage) {
+      const shipIndex = typeof app.stage.getChildIndex === 'function' ? app.stage.getChildIndex(ship.sprite) : -1;
+      if (shipIndex !== -1 && typeof app.stage.addChildAt === 'function') {
+        if (hardpoint.onTop) {
+          app.stage.addChildAt(sprite, shipIndex + 1);
+        } else {
+          app.stage.addChildAt(sprite, shipIndex);
+        }
+      } else if (typeof app.stage.addChild === 'function') {
+        app.stage.addChild(sprite);
+      }
+    }
+
+    projectiles.push({
+      sprite,
+      particle: sprite,
+      container: null,
+      vx,
+      vy,
+      rotation: spinSpeed,
+      rotationSpeed: spinSpeed,
+      shipId: ship.data.id,
+      originTime: performance.now(),
+      lifetime: projData.lifetime,
+      damage: projData.damage !== undefined ? projData.damage : 1,
+    });
+  }
 }
 
 function getShipWeaponGroups(ship) {
@@ -864,20 +930,66 @@ function fireShipWeapons(ship) {
 }
 
 function setup() {
-  const numberOfStars = 20;
-  for (let i = 0; i < numberOfStars; i++) {
-    let star = new PIXI.Sprite(
-      PIXI.Assets.get("img/stars/Star.png")
-    );
-    let x = randomInt(0 - OFFSCREEN, GAME_WIDTH + OFFSCREEN);
-    let y = randomInt(0 - OFFSCREEN, GAME_HEIGHT + OFFSCREEN);
+  const numberOfStars = 100;
+  const hasParticleSupport = typeof PIXI !== 'undefined' && typeof PIXI.ParticleContainer === 'function' && typeof PIXI.Particle === 'function';
+  const starTexture = (typeof PIXI !== 'undefined' && PIXI.Assets && typeof PIXI.Assets.get === 'function') ? PIXI.Assets.get("img/stars/Star.png") : null;
 
-    star.x = x;
-    star.y = y;
-    star.distanceMod = Math.random() / 5 + 0.75;
+  if (hasParticleSupport) {
+    starContainer = new PIXI.ParticleContainer({
+      texture: starTexture,
+      dynamicProperties: {
+        position: true,
+        rotation: false,
+        vertex: false,
+        uvs: false,
+        color: false,
+      }
+    });
+    app.stage.addChild(starContainer);
 
-    stars.push(star);
-    app.stage.addChild(star);
+    for (let i = 0; i < numberOfStars; i++) {
+      let x = randomInt(0 - OFFSCREEN, GAME_WIDTH + OFFSCREEN);
+      let y = randomInt(0 - OFFSCREEN, GAME_HEIGHT + OFFSCREEN);
+
+      const star = new PIXI.Particle({
+        texture: starTexture,
+        x: x,
+        y: y,
+        anchorX: 0.5,
+        anchorY: 0.5,
+      });
+      star.distanceMod = Math.random() / 5 + 0.75;
+
+      stars.push(star);
+      starContainer.addParticle(star);
+    }
+
+    // Projectile container underneath ships (for hardpoints with onTop = false)
+    projectileContainerUnder = new PIXI.ParticleContainer({
+      dynamicProperties: {
+        position: true,
+        rotation: true,
+        vertex: false,
+        uvs: false,
+        color: false,
+      }
+    });
+    app.stage.addChild(projectileContainerUnder);
+  } else {
+    for (let i = 0; i < numberOfStars; i++) {
+      let star = (typeof PIXI !== 'undefined' && typeof PIXI.Sprite === 'function') ? new PIXI.Sprite(starTexture) : { x: 0, y: 0 };
+      let x = randomInt(0 - OFFSCREEN, GAME_WIDTH + OFFSCREEN);
+      let y = randomInt(0 - OFFSCREEN, GAME_HEIGHT + OFFSCREEN);
+
+      star.x = x;
+      star.y = y;
+      star.distanceMod = Math.random() / 5 + 0.75;
+
+      stars.push(star);
+      if (app && app.stage && typeof app.stage.addChild === 'function') {
+        app.stage.addChild(star);
+      }
+    }
   }
 
   // Player ship starts with the default Crimson Vanguard paint and default blaster
@@ -996,6 +1108,20 @@ function setup() {
 
   const ships = [];
 
+  if (hasParticleSupport) {
+    // Projectile container over ships (for hardpoints with onTop = true)
+    projectileContainerOver = new PIXI.ParticleContainer({
+      dynamicProperties: {
+        position: true,
+        rotation: true,
+        vertex: false,
+        uvs: false,
+        color: false,
+      }
+    });
+    app.stage.addChild(projectileContainerOver);
+  }
+
   // Shield impact bubble graphics in the main view
   const shieldGraphics = new PIXI.Graphics();
   app.stage.addChild(shieldGraphics);
@@ -1091,7 +1217,10 @@ function setup() {
       ships.push(npc);
       app.stage.addChild(npc.sprite);
     }
-    // Keep shield bubbles and targeting bracket HUD overlay on top of all ships
+    // Keep over-ship projectile layer, shield bubbles, and targeting bracket HUD overlay on top of all ships
+    if (projectileContainerOver) {
+      app.stage.addChild(projectileContainerOver);
+    }
     app.stage.addChild(shieldGraphics);
     app.stage.addChild(targetBracketGraphics);
     // Form the fleet if not in combat mode
@@ -2361,15 +2490,15 @@ function setup() {
     for (let i = projectiles.length - 1; i >= 0; i--) {
       const proj = projectiles[i];
       if ((now - proj.originTime) / 1000 >= proj.lifetime) {
-        app.stage.removeChild(proj.sprite);
-        proj.sprite.destroy();
+        removeProjectile(proj);
         projectiles.splice(i, 1);
         continue;
       }
 
-      proj.sprite.x += (proj.vx - playerShip.data.vx) * delta * (60 / 1000);
-      proj.sprite.y += (proj.vy - playerShip.data.vy) * delta * (60 / 1000);
-      proj.sprite.rotation += (proj.rotation || proj.rotationSpeed || 0) * delta;
+      const pObj = proj.particle || proj.sprite;
+      pObj.x += (proj.vx - playerShip.data.vx) * delta * (60 / 1000);
+      pObj.y += (proj.vy - playerShip.data.vy) * delta * (60 / 1000);
+      pObj.rotation += (proj.rotation || proj.rotationSpeed || 0) * delta;
 
       // Hitbox collision check against active ships using distance squared formula
       let hit = false;
@@ -2378,8 +2507,8 @@ function setup() {
         if (!targetShip || !targetShip.sprite || !targetShip.data || targetShip.data.isDestroyed) continue;
         if (targetShip.data.id === proj.shipId) continue; // Do not hit firing ship
 
-        const pdx = proj.sprite.x - targetShip.sprite.x;
-        const pdy = proj.sprite.y - targetShip.sprite.y;
+        const pdx = pObj.x - targetShip.sprite.x;
+        const pdy = pObj.y - targetShip.sprite.y;
         const distSq = pdx * pdx + pdy * pdy;
 
         const shieldRadius = (targetShip.data.hull && targetShip.data.hull.shieldRadius) ? targetShip.data.hull.shieldRadius : 20;
@@ -2455,8 +2584,7 @@ function setup() {
       }
 
       if (hit) {
-        app.stage.removeChild(proj.sprite);
-        proj.sprite.destroy();
+        removeProjectile(proj);
         projectiles.splice(i, 1);
       }
     }
