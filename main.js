@@ -204,8 +204,8 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: false,
-        location: {x: 15, y: 17},
+        onTop: true,
+        location: {x: 15, y: 20},
       }
     ],
   },
@@ -218,8 +218,13 @@ const HULLS_DATA = [
     hardpoints: [
       {
         size: 0,
-        onTop: false,
-        location: {x: 16, y: 15},
+        onTop: true,
+        location: {x: 12, y: 8},
+      },
+      {
+        size: 0,
+        onTop: true,
+        location: {x: 20, y: 8},
       }
     ],
   },
@@ -294,7 +299,12 @@ const HULLS_DATA = [
       {
         size: 0,
         onTop: false,
-        location: {x: 15, y: 17},
+        location: {x: 14, y: 8},
+      },
+      {
+        size: 0,
+        onTop: false,
+        location: {x: 17, y: 8},
       }
     ],
   },
@@ -308,7 +318,7 @@ const HULLS_DATA = [
       {
         size: 0,
         onTop: false,
-        location: {x: 14, y: 16},
+        location: {x: 8, y: 15},
       }
     ],
   },
