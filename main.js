@@ -196,7 +196,7 @@ const WEAPONS_DATA = {
       speed: 100, // px/s (doubled from 50 px/s)
       rotation: 0.1, // spin speed in rad/tick
       rotationSpeed: 0.1,
-      lifetime: 0.75, // seconds (halved from 1.5s to preserve 75px range)
+      lifetime: 3.5, // seconds (extended range to 350px for long-range combat)
     }
   }
 };
@@ -1144,17 +1144,27 @@ function setup() {
       fightBtn.classList.add('active');
 
       const allCombatants = [playerShip, derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed);
-      const activeNpcs = [derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed && !s.data.isDisabled);
+      // Only active fleet ships join the battle; derelict ship does not join and remains motionless
+      const activeNpcs = ships.filter((s) => s && s.data && !s.data.isDestroyed && !s.data.isDisabled);
 
       for (const npc of activeNpcs) {
         if (!npc.data.combatStrategy) {
           npc.data.combatStrategy = Math.random() < 0.5 ? 'turn_fight' : 'joust';
         }
         npc.data.aiState = 'COMBAT';
-        npc.data.isDerelict = false;
         npc.data.isRetreating = false;
         npc.data.combatTarget = findNearestHostile(npc, allCombatants);
       }
+
+      if (derelictShip && derelictShip.data) {
+        derelictShip.data.isDerelict = true;
+        derelictShip.data.aiState = 'DERELICT';
+        derelictShip.data.combatStrategy = null;
+        derelictShip.data.combatTarget = null;
+        derelictShip.data.vx = 0;
+        derelictShip.data.vy = 0;
+      }
+
       event.target.blur();
     });
   }
@@ -1187,10 +1197,11 @@ function setup() {
     let nearestTarget = null;
     let nearestDistSq = Infinity;
 
-    // First pass: active hostile ships (not disabled, not destroyed)
+    // First pass: active hostile ships (not disabled, not destroyed, and not the motionless derelict)
     for (let i = 0; i < allCombatants.length; i++) {
       const cand = allCombatants[i];
       if (!cand || cand === ship || !cand.data || !cand.sprite || cand.data.isDestroyed || cand.data.isDisabled) continue;
+      if (cand.data.isDerelict || cand === derelictShip) continue;
       if (!cand.data.paint || cand.data.paint.name === myColor) continue;
 
       const dx = cand.sprite.x - ship.sprite.x;
@@ -1202,11 +1213,12 @@ function setup() {
       }
     }
 
-    // Second pass: if no active enemies, check disabled hostiles that aren't destroyed
+    // Second pass: if no active enemies, check disabled hostiles (excluding derelict)
     if (!nearestTarget) {
       for (let i = 0; i < allCombatants.length; i++) {
         const cand = allCombatants[i];
         if (!cand || cand === ship || !cand.data || !cand.sprite || cand.data.isDestroyed) continue;
+        if (cand.data.isDerelict || cand === derelictShip) continue;
         if (!cand.data.paint || cand.data.paint.name === myColor) continue;
 
         const dx = cand.sprite.x - ship.sprite.x;
@@ -1280,7 +1292,8 @@ function setup() {
 
     ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
 
-    if (inRange && Math.abs(angleDiff) < 0.25) {
+    // Bias toward firing even if not perfectly aligned (within ~43 degrees / 0.75 rad) to increase hits
+    if (inRange && Math.abs(angleDiff) < 0.75) {
       fireShipWeapons(ship);
     }
     return { aimAngle, angleDiff, inRange };
@@ -1491,11 +1504,11 @@ function setup() {
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
 
-        // Opportunistic shot if serendipitously aligned while in range
+        // Opportunistic shot if serendipitously aligned while in range (biased toward firing)
         if (dist <= weaponRange) {
           const { aimAngle, inRange: leadInRange } = getLeadSolution(ship, target);
           const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
-          if (leadInRange && aimDiff < 0.25) {
+          if (leadInRange && aimDiff < 0.75) {
             fireShipWeapons(ship);
           }
         }
@@ -1557,7 +1570,7 @@ function setup() {
         if (inRange) {
           const { aimAngle, inRange: leadInRange } = getLeadSolution(ship, target);
           const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
-          if (leadInRange && aimDiff < 0.25) {
+          if (leadInRange && aimDiff < 0.75) {
             fireShipWeapons(ship);
           }
         }
@@ -2681,19 +2694,17 @@ function setup() {
       shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
     }
 
-    // Derelict ship
+    // Derelict ship does not join in the fight but remains motionless in space
     if (derelictShip && !derelictShip.data.isDestroyed) {
-      if (isFighting) {
-        updateNpcCombat(derelictShip, delta, delta * (60 / 1000), allShips);
-      } else {
-        const dMaxA = derelictShip.data.maxHullHealth || derelictShip.data.maxArmor || 10;
-        if (derelictShip.data.hullHealth <= dMaxA * 0.1) {
-          derelictShip.data.isDisabled = true;
-          derelictShip.data.aiState = 'DISABLED';
-        }
-        derelictShip.sprite.x -= playerShip.data.vx * delta * (60 / 1000) || 0;
-        derelictShip.sprite.y -= playerShip.data.vy * delta * (60 / 1000) || 0;
+      const dMaxA = derelictShip.data.maxHullHealth || derelictShip.data.maxArmor || 10;
+      if (derelictShip.data.hullHealth <= dMaxA * 0.1) {
+        derelictShip.data.isDisabled = true;
+        derelictShip.data.aiState = 'DISABLED';
       }
+      derelictShip.data.vx = 0;
+      derelictShip.data.vy = 0;
+      derelictShip.sprite.x -= playerShip.data.vx * delta * (60 / 1000) || 0;
+      derelictShip.sprite.y -= playerShip.data.vy * delta * (60 / 1000) || 0;
     }
 
     for (var i = 0; i < stars.length; i++) {
