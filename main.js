@@ -1249,12 +1249,19 @@ function setup() {
     }
   }
 
+  function getRandomCombatStrategy() {
+    const rand = Math.random();
+    if (rand < 0.333) return 'turn_fight';
+    if (rand < 0.666) return 'joust';
+    return 'standoff';
+  }
+
   function spawnNpcShips(count) {
     for (let i = 0; i < count; i++) {
       const npc = buildShip();
       npc.sprite.position.set(GAME_WIDTH * Math.random(), GAME_HEIGHT * Math.random());
       if (isFighting) {
-        npc.data.combatStrategy = Math.random() < 0.5 ? 'turn_fight' : 'joust';
+        npc.data.combatStrategy = getRandomCombatStrategy();
         npc.data.aiState = 'COMBAT';
       }
       ships.push(npc);
@@ -1321,7 +1328,7 @@ function setup() {
 
       for (const npc of activeNpcs) {
         if (!npc.data.combatStrategy) {
-          npc.data.combatStrategy = Math.random() < 0.5 ? 'turn_fight' : 'joust';
+          npc.data.combatStrategy = getRandomCombatStrategy();
         }
         npc.data.aiState = 'COMBAT';
         npc.data.isRetreating = false;
@@ -1411,6 +1418,7 @@ function setup() {
     const s = String(strategy).toLowerCase().replace(/[^a-z]/g, '');
     if (s.includes('turn')) return 'TURN FIGHT';
     if (s.includes('joust')) return 'JOUSTING';
+    if (s.includes('standoff')) return 'STANDOFF';
     return String(strategy).toUpperCase();
   }
 
@@ -1591,7 +1599,7 @@ function setup() {
     }
 
     if (!shipData.combatStrategy) {
-      shipData.combatStrategy = Math.random() < 0.5 ? 'turn_fight' : 'joust';
+      shipData.combatStrategy = getRandomCombatStrategy();
     }
 
     const dx = target.sprite.x - shipSprite.x;
@@ -1710,6 +1718,98 @@ function setup() {
             }
           }
         }
+      }
+    } else if (shipData.combatStrategy === 'standoff') {
+      // === STANDOFF STRATEGY ===
+      // Focus on managing range between attacker and target near maximum weapon range while shooting as much as possible.
+      // Immediately turn and shoot with shot leading.
+      // Apply forward thrust if distance starts to drift out of range, just enough to get back in range.
+      // Lateral drift is preserved to naturally orbit and maintain range.
+      // Ships with reversible thrusters use reverse thrust to tweak range and relative motion to stay near maximum range.
+      aimAndShoot(ship, target);
+
+      const targetMaxRange = weaponRange * 0.92;
+      const targetMinRange = weaponRange * 0.72;
+
+      const fwdX = Math.sin(shipSprite.rotation);
+      const fwdY = -Math.cos(shipSprite.rotation);
+      const losX = dx / Math.max(1, dist);
+      const losY = dy / Math.max(1, dist);
+      const dotFwdLOS = fwdX * losX + fwdY * losY;
+
+      const relVx = shipData.vx - target.data.vx;
+      const relVy = shipData.vy - target.data.vy;
+      const closingSpeed = losX * relVx + losY * relVy;
+
+      if (dist > targetMaxRange) {
+        // Distance is drifting out of range or already out of range:
+        // Apply forward thrust just enough to get back in range
+        const excessDist = dist - targetMaxRange;
+        const desiredClosingSpeed = Math.min(maxSpeed * 0.8, Math.max(15, excessDist * 0.6));
+
+        if (closingSpeed < desiredClosingSpeed && dotFwdLOS > 0.4) {
+          const neededDv = (desiredClosingSpeed - closingSpeed) / Math.max(0.1, dotFwdLOS);
+          if (neededDv > 0.5) {
+            const step = Math.min(dvMax, neededDv);
+            const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+            shipData.vx = clamped.vx;
+            shipData.vy = clamped.vy;
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          } else {
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          }
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        }
+      } else if (shipData.engine && shipData.engine.reversible) {
+        // Reversible engine: tweak range and relative motion to stay right near maximum range
+        if (dist < targetMinRange) {
+          // Inside min range: back off with reverse thrust
+          const underDist = targetMinRange - dist;
+          const desiredBackoffSpeed = Math.min(maxSpeed * 0.5, Math.max(10, underDist * 0.6));
+          if (closingSpeed > -desiredBackoffSpeed && dotFwdLOS > 0.4) {
+            const neededReverseDv = (closingSpeed - (-desiredBackoffSpeed)) / Math.max(0.1, dotFwdLOS);
+            if (neededReverseDv > 0.5) {
+              const step = Math.min(dvMax, neededReverseDv);
+              const clamped = checkSpeed(shipData.vx - step * fwdX, shipData.vy - step * fwdY, maxSpeed);
+              shipData.vx = clamped.vx;
+              shipData.vy = clamped.vy;
+              if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = true;
+              if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+            } else {
+              if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+              if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+            }
+          } else {
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          }
+        } else if (closingSpeed > 10 && dotFwdLOS > 0.4) {
+          // Within sweet spot, but target is closing rapidly: tweak relative motion to arrest closing speed
+          const neededReverseDv = (closingSpeed - 0) / Math.max(0.1, dotFwdLOS);
+          if (neededReverseDv > 0.5) {
+            const step = Math.min(dvMax, neededReverseDv);
+            const clamped = checkSpeed(shipData.vx - step * fwdX, shipData.vy - step * fwdY, maxSpeed);
+            shipData.vx = clamped.vx;
+            shipData.vy = clamped.vy;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = true;
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          } else {
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          }
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        }
+      } else {
+        // Non-reversible ship in or under standoff range:
+        // Do not forward thrust; allow lateral drift to maintain range and continue shooting
+        if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+        if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
       }
     } else {
       // === JOUSTING STRATEGY ===
@@ -2096,6 +2196,7 @@ function setup() {
     window.findNearestHostile = findNearestHostile;
     window.updateNpcCombat = updateNpcCombat;
     window.getStrategyDisplayName = getStrategyDisplayName;
+    window.getRandomCombatStrategy = getRandomCombatStrategy;
     Object.defineProperty(window, 'isFighting', {
       get: () => isFighting,
       set: (val) => { isFighting = !!val; },
