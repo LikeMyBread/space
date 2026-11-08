@@ -593,6 +593,8 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     maxArmor: 10,
     shieldHitTimer: 0,
     shieldDownDelay: 0,
+    isDisabled: false,
+    isDestroyed: false,
     energy: 100,
     maxEnergy: 100,
     jumpFuel: 3,
@@ -697,10 +699,13 @@ function calculateArbitraryFormationOrdering(count, spacing = FORMATION_DISTANCE
 function formFleet(leader, followerShips, spacing = FORMATION_DISTANCE) {
   if (!followerShips || followerShips.length === 0) return;
 
-  const orderedSlots = calculateArbitraryFormationOrdering(followerShips.length, spacing);
+  const activeFollowers = followerShips.filter((s) => s && s.data && !s.data.isDestroyed && !s.data.isDisabled);
+  if (activeFollowers.length === 0) return;
 
-  for (let i = 0; i < followerShips.length; i++) {
-    const ship = followerShips[i];
+  const orderedSlots = calculateArbitraryFormationOrdering(activeFollowers.length, spacing);
+
+  for (let i = 0; i < activeFollowers.length; i++) {
+    const ship = activeFollowers[i];
     const slot = orderedSlots[i];
     ship.data.formationLeader = leader;
     ship.data.formationSlot = slot;
@@ -937,13 +942,30 @@ function setup() {
       const totalMass = data.hull.mass + data.engine.mass;
       statusMassVal.textContent = `${totalMass.toLocaleString()} kg`;
     }
+
+    const playerStatusBadge = document.getElementById("player-status-badge");
+    if (playerStatusBadge) {
+      if (data.isDestroyed) {
+        playerStatusBadge.textContent = 'DESTROYED';
+        playerStatusBadge.className = 'status-badge status-critical';
+      } else if (data.isDisabled) {
+        playerStatusBadge.textContent = 'DISABLED';
+        playerStatusBadge.className = 'status-badge status-critical';
+      } else if (currentShield === 0) {
+        playerStatusBadge.textContent = 'SHIELD DOWN';
+        playerStatusBadge.className = 'status-badge status-warning';
+      } else {
+        playerStatusBadge.textContent = 'NOMINAL';
+        playerStatusBadge.className = 'status-badge';
+      }
+    }
   }
 
   // Derelict test ship that simply floats in place and does nothing
   const derelictHull = HULLS_DATA.find((h) => h.name === 'Boat') || randomChoice(HULLS_DATA);
   const derelictEngine = ENGINES_DATA[0];
   const derelictPaint = FACTION_PAINTS[3]; // Solaris Guild (Gold)
-  const derelictShip = buildShip(derelictHull, derelictEngine, derelictPaint);
+  let derelictShip = buildShip(derelictHull, derelictEngine, derelictPaint);
   derelictShip.data.isDerelict = true;
   derelictShip.data.aiState = 'DERELICT';
   derelictShip.data.vx = 0;
@@ -976,7 +998,7 @@ function setup() {
     const allShips = [playerShip, derelictShip, ...ships];
     for (let i = 0; i < allShips.length; i++) {
       const s = allShips[i];
-      if (!s || !s.data) continue;
+      if (!s || !s.data || s.data.isDestroyed || s.data.isDisabled) continue;
       const maxS = s.data.maxShield || 10;
 
       // Delay recharging by 1 second after shields go down
@@ -997,7 +1019,7 @@ function setup() {
     const allShips = [playerShip, derelictShip, ...ships];
     for (let i = 0; i < allShips.length; i++) {
       const s = allShips[i];
-      if (!s || !s.sprite || !s.data) continue;
+      if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
       if (s.data.shieldHitTimer > 0) {
         s.data.shieldHitTimer = Math.max(0, s.data.shieldHitTimer - dtSec);
         const alpha = Math.min(1, s.data.shieldHitTimer / 0.25);
@@ -1007,6 +1029,38 @@ function setup() {
         shieldGraphics.stroke({ width: 2, color: 0x38bdf8, alpha: 0.85 * alpha });
       }
     }
+  }
+
+  function destroyShip(shipToDestroy) {
+    if (!shipToDestroy || !shipToDestroy.data || shipToDestroy.data.isDestroyed) return;
+    shipToDestroy.data.isDestroyed = true;
+    shipToDestroy.data.isDisabled = true;
+
+    if (shipToDestroy.sprite) {
+      if (shipToDestroy.sprite.parent) {
+        shipToDestroy.sprite.parent.removeChild(shipToDestroy.sprite);
+      }
+      if (typeof shipToDestroy.sprite.destroy === 'function') {
+        shipToDestroy.sprite.destroy({ children: true });
+      }
+    }
+
+    if (shipToDestroy === derelictShip) {
+      derelictShip = null;
+    } else {
+      const idx = ships.indexOf(shipToDestroy);
+      if (idx !== -1) {
+        ships.splice(idx, 1);
+      }
+    }
+
+    // If current target was destroyed, cycle to the next target
+    if (currentTargetId === shipToDestroy.data.id) {
+      currentTargetId = null;
+      cycleTarget(false);
+    }
+
+    updateShipCount();
   }
 
   function updateShipCount() {
@@ -1176,9 +1230,9 @@ function setup() {
 
   function getTargetableShips() {
     const list = [];
-    if (derelictShip) list.push(derelictShip);
+    if (derelictShip && !derelictShip.data.isDestroyed) list.push(derelictShip);
     for (let i = 0; i < ships.length; i++) {
-      if (ships[i]) list.push(ships[i]);
+      if (ships[i] && !ships[i].data.isDestroyed) list.push(ships[i]);
     }
     list.sort((a, b) => a.data.id - b.data.id);
     return list;
@@ -1296,7 +1350,7 @@ function setup() {
 
     // Helper to plot a ship on radar
     function plotShipDot(targetShip, isPlayer = false, isDerelict = false) {
-      if (!targetShip || !targetShip.sprite) return;
+      if (!targetShip || !targetShip.sprite || !targetShip.data || targetShip.data.isDestroyed) return;
 
       let rx = cx;
       let ry = cy;
@@ -1481,7 +1535,7 @@ function setup() {
     targetCtx.stroke();
     targetCtx.lineWidth = 1;
 
-    if (!targetShip || !targetShip.data) {
+    if (!targetShip || !targetShip.data || targetShip.data.isDestroyed) {
       targetCtx.fillStyle = '#64748b';
       targetCtx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
       targetCtx.textAlign = 'center';
@@ -1599,9 +1653,15 @@ function setup() {
     const targetArmorPct = Math.max(0, Math.min(100, (currentTargetArmor / maxTargetArmor) * 100));
 
     // Lock status & Target Vitals on OSD
-    targetCtx.fillStyle = '#38bdf8';
     targetCtx.textAlign = 'right';
-    targetCtx.fillText('TRK: LOCK', width - 12, 17);
+    if (targetShip.data.isDisabled) {
+      targetCtx.fillStyle = '#f87171';
+      targetCtx.fillText('TRK: DISABLED', width - 12, 17);
+    } else {
+      targetCtx.fillStyle = '#38bdf8';
+      targetCtx.fillText('TRK: LOCK', width - 12, 17);
+    }
+    targetCtx.fillStyle = '#38bdf8';
     targetCtx.fillText(`SHD: ${Math.ceil(currentTargetShield)}/${maxTargetShield}`, width - 12, 29);
     targetCtx.fillStyle = '#fbbf24';
     targetCtx.fillText(`ARM: ${Math.ceil(currentTargetArmor)}/${maxTargetArmor}`, width - 12, 41);
@@ -1631,7 +1691,16 @@ function setup() {
       targetDistVal.textContent = `${Math.round(dist).toLocaleString()}m`;
     }
     if (targetStateVal) {
-      targetStateVal.textContent = targetShip.data.aiState || (targetShip.data.isDerelict ? 'DERELICT' : 'IDLE');
+      if (targetShip.data.isDestroyed) {
+        targetStateVal.textContent = 'DESTROYED';
+        targetStateVal.style.color = '#ef4444';
+      } else if (targetShip.data.isDisabled) {
+        targetStateVal.textContent = 'DISABLED';
+        targetStateVal.style.color = '#f87171';
+      } else {
+        targetStateVal.textContent = targetShip.data.aiState || (targetShip.data.isDerelict ? 'DERELICT' : 'IDLE');
+        targetStateVal.style.color = '#e2e8f0';
+      }
     }
     if (targetShieldVal) {
       targetShieldVal.textContent = `${Math.ceil(currentTargetShield)} / ${maxTargetShield}`;
@@ -1650,7 +1719,7 @@ function setup() {
   function updateTargetBracket() {
     targetBracketGraphics.clear();
     const target = getCurrentTarget();
-    if (!target || !target.sprite || target === playerShip) {
+    if (!target || !target.sprite || target === playerShip || target.data.isDestroyed) {
       return;
     }
 
@@ -1709,41 +1778,62 @@ function setup() {
       }
     }
 
-    if (isTurningLeft()) {
-      playerShip.sprite.rotation -= TURN_RATE;
+    // Check player ship disabled & destroyed state
+    const playerMaxArmor = playerShip.data.maxHullHealth || playerShip.data.maxArmor || 10;
+    if (playerShip.data.hullHealth <= playerMaxArmor * 0.1 && !playerShip.data.isDestroyed) {
+      playerShip.data.isDisabled = true;
+      playerShip.data.aiState = 'DISABLED';
     }
 
-    if (isTurningRight()) {
-      playerShip.sprite.rotation += TURN_RATE;
-    }
+    if (playerShip.data.isDisabled || playerShip.data.isDestroyed) {
+      if (playerShip.data.engineLitSprite) playerShip.data.engineLitSprite.visible = false;
+      if (playerShip.data.engineReverseSprite) playerShip.data.engineReverseSprite.visible = false;
 
-    if (isThrusting()) {
-      const newSpeed = applyThrust(playerShip, delta, ACCEL_LIMIT);
-      playerShip.data.vx = newSpeed.vx;
-      playerShip.data.vy = newSpeed.vy;
-
-      if (playerShip.data.engineLitSprite) {
-        playerShip.data.engineLitSprite.visible = true;
+      // Violate Newtonian physics: slowly drift to a stop
+      const damping = Math.pow(0.95, delta);
+      playerShip.data.vx *= damping;
+      playerShip.data.vy *= damping;
+      if (playerShip.data.vx * playerShip.data.vx + playerShip.data.vy * playerShip.data.vy < 0.01) {
+        playerShip.data.vx = 0;
+        playerShip.data.vy = 0;
       }
-    } else if (playerShip.data.engineLitSprite && playerShip.data.engineLitSprite.visible) {
-      playerShip.data.engineLitSprite.visible = false;
-    }
-
-    if (isReversing() && playerShip.data.engine.reversible) {
-      const newSpeed = applyReverseThrust(playerShip, delta, ACCEL_LIMIT);
-      playerShip.data.vx = newSpeed.vx;
-      playerShip.data.vy = newSpeed.vy;
-
-      if (playerShip.data.engineReverseSprite) {
-        playerShip.data.engineReverseSprite.visible = true;
+    } else {
+      if (isTurningLeft()) {
+        playerShip.sprite.rotation -= TURN_RATE;
       }
-    } else if (playerShip.data.engine.reversible && playerShip.data.engineReverseSprite && playerShip.data.engineReverseSprite.visible) {
-      playerShip.data.engineReverseSprite.visible = false;
-    }
 
-    // Fire weapons when spacebar is engaged
-    if (isFiring()) {
-      fireShipWeapons(playerShip);
+      if (isTurningRight()) {
+        playerShip.sprite.rotation += TURN_RATE;
+      }
+
+      if (isThrusting()) {
+        const newSpeed = applyThrust(playerShip, delta, ACCEL_LIMIT);
+        playerShip.data.vx = newSpeed.vx;
+        playerShip.data.vy = newSpeed.vy;
+
+        if (playerShip.data.engineLitSprite) {
+          playerShip.data.engineLitSprite.visible = true;
+        }
+      } else if (playerShip.data.engineLitSprite && playerShip.data.engineLitSprite.visible) {
+        playerShip.data.engineLitSprite.visible = false;
+      }
+
+      if (isReversing() && playerShip.data.engine.reversible) {
+        const newSpeed = applyReverseThrust(playerShip, delta, ACCEL_LIMIT);
+        playerShip.data.vx = newSpeed.vx;
+        playerShip.data.vy = newSpeed.vy;
+
+        if (playerShip.data.engineReverseSprite) {
+          playerShip.data.engineReverseSprite.visible = true;
+        }
+      } else if (playerShip.data.engine.reversible && playerShip.data.engineReverseSprite && playerShip.data.engineReverseSprite.visible) {
+        playerShip.data.engineReverseSprite.visible = false;
+      }
+
+      // Fire weapons when spacebar is engaged
+      if (isFiring()) {
+        fireShipWeapons(playerShip);
+      }
     }
 
     // Update active projectiles
@@ -1773,7 +1863,7 @@ function setup() {
       let hit = false;
       for (let sIdx = 0; sIdx < allShips.length; sIdx++) {
         const targetShip = allShips[sIdx];
-        if (!targetShip || !targetShip.sprite || !targetShip.data) continue;
+        if (!targetShip || !targetShip.sprite || !targetShip.data || targetShip.data.isDestroyed) continue;
         if (targetShip.data.id === proj.shipId) continue; // Do not hit firing ship
 
         const pdx = proj.sprite.x - targetShip.sprite.x;
@@ -1809,6 +1899,13 @@ function setup() {
               if (distSq <= hullRadius * hullRadius) {
                 targetShip.data.hullHealth = Math.max(0, targetShip.data.hullHealth - proj.damage);
                 targetShip.data.armor = targetShip.data.hullHealth;
+                const maxA = targetShip.data.maxHullHealth || targetShip.data.maxArmor || 10;
+                if (targetShip.data.hullHealth <= 0) {
+                  destroyShip(targetShip);
+                } else if (targetShip.data.hullHealth <= maxA * 0.1) {
+                  targetShip.data.isDisabled = true;
+                  targetShip.data.aiState = 'DISABLED';
+                }
                 hit = true;
                 break;
               }
@@ -1823,6 +1920,13 @@ function setup() {
             targetShip.data.hullHealth = Math.max(0, targetShip.data.hullHealth - proj.damage);
             targetShip.data.armor = targetShip.data.hullHealth;
             targetShip.data.shieldDownDelay = 1.0;
+            const maxA = targetShip.data.maxHullHealth || targetShip.data.maxArmor || 10;
+            if (targetShip.data.hullHealth <= 0) {
+              destroyShip(targetShip);
+            } else if (targetShip.data.hullHealth <= maxA * 0.1) {
+              targetShip.data.isDisabled = true;
+              targetShip.data.aiState = 'DISABLED';
+            }
             hit = true;
             break;
           }
@@ -1839,10 +1943,38 @@ function setup() {
     // Render active shield hit circles
     updateShieldEffects(dtSec);
 
-    for (let i = 0; i < ships.length; i++) {
+    for (let i = ships.length - 1; i >= 0; i--) {
       const ship = ships[i];
+      if (!ship || !ship.sprite || !ship.data || ship.data.isDestroyed) continue;
       const shipSprite = ship.sprite;
       const shipData = ship.data;
+
+      // Check if ship is disabled (armor <= 10%)
+      const maxA = shipData.maxHullHealth || shipData.maxArmor || 10;
+      if (shipData.hullHealth <= maxA * 0.1) {
+        shipData.isDisabled = true;
+        shipData.aiState = 'DISABLED';
+      }
+
+      if (shipData.isDisabled) {
+        // Disabled ships turn off thrusters and cannot maneuver
+        if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+        if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+
+        // Violate Newtonian physics: slowly drift to a stop
+        const damping = Math.pow(0.95, delta);
+        shipData.vx *= damping;
+        shipData.vy *= damping;
+        if (shipData.vx * shipData.vx + shipData.vy * shipData.vy < 0.01) {
+          shipData.vx = 0;
+          shipData.vy = 0;
+        }
+
+        // Relative motion tracking with camera
+        shipSprite.x -= (playerShip.data.vx - shipData.vx) * delta * (60 / 1000) || 0;
+        shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
+        continue;
+      }
 
       // Formation offset relative to the formation leader based on the hexagonal grid
       const offset = shipData.formationOffset || { x: 0, y: FORMATION_DISTANCE };
@@ -2050,7 +2182,12 @@ function setup() {
     }
 
     // Derelict ship simply floats in place: its position relative to camera tracks player motion
-    if (derelictShip) {
+    if (derelictShip && !derelictShip.data.isDestroyed) {
+      const dMaxA = derelictShip.data.maxHullHealth || derelictShip.data.maxArmor || 10;
+      if (derelictShip.data.hullHealth <= dMaxA * 0.1) {
+        derelictShip.data.isDisabled = true;
+        derelictShip.data.aiState = 'DISABLED';
+      }
       derelictShip.sprite.x -= playerShip.data.vx * delta * (60 / 1000) || 0;
       derelictShip.sprite.y -= playerShip.data.vy * delta * (60 / 1000) || 0;
     }
