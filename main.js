@@ -843,6 +843,10 @@ function setup() {
 
   const ships = [];
 
+  // Tactical targeting bracket graphics in the main view
+  const targetBracketGraphics = new PIXI.Graphics();
+  app.stage.addChild(targetBracketGraphics);
+
   function updateShipCount() {
     if (shipCountDisplay) {
       const totalNpc = ships.length + (derelictShip ? 1 : 0);
@@ -857,6 +861,8 @@ function setup() {
       ships.push(npc);
       app.stage.addChild(npc.sprite);
     }
+    // Keep targeting bracket HUD overlay on top of all ships
+    app.stage.addChild(targetBracketGraphics);
     // Form the fleet: assign each ship a position in the hexagonal grid based on arbitrary ordering
     formFleet(playerShip, ships);
     updateShipCount();
@@ -1436,6 +1442,49 @@ function setup() {
     }
   }
 
+  function updateTargetBracket() {
+    targetBracketGraphics.clear();
+    const target = getCurrentTarget();
+    if (!target || !target.sprite || target === playerShip) {
+      return;
+    }
+
+    const tx = target.sprite.x;
+    const ty = target.sprite.y;
+
+    // Do not render brackets if the target ship is completely off-screen
+    const margin = 50;
+    if (tx < -margin || tx > GAME_WIDTH + margin || ty < -margin || ty > GAME_HEIGHT + margin) {
+      return;
+    }
+
+    // Corner brackets matching the tactical radar display
+    const b = 24;
+    const arm = 8;
+
+    // Top-left
+    targetBracketGraphics.moveTo(tx - b, ty - b + arm);
+    targetBracketGraphics.lineTo(tx - b, ty - b);
+    targetBracketGraphics.lineTo(tx - b + arm, ty - b);
+
+    // Top-right
+    targetBracketGraphics.moveTo(tx + b - arm, ty - b);
+    targetBracketGraphics.lineTo(tx + b, ty - b);
+    targetBracketGraphics.lineTo(tx + b, ty - b + arm);
+
+    // Bottom-right
+    targetBracketGraphics.moveTo(tx + b, ty + b - arm);
+    targetBracketGraphics.lineTo(tx + b, ty + b);
+    targetBracketGraphics.lineTo(tx + b - arm, ty + b);
+
+    // Bottom-left
+    targetBracketGraphics.moveTo(tx - b + arm, ty + b);
+    targetBracketGraphics.lineTo(tx - b, ty + b);
+    targetBracketGraphics.lineTo(tx - b, ty + b - arm);
+
+    targetBracketGraphics.stroke({ width: 1.5, color: '#38bdf8' });
+  }
+
   let fpsTimer = 0;
 
   function gameLoop(delta){
@@ -1734,6 +1783,9 @@ function setup() {
         star.y -= GAME_HEIGHT - randomInt(-1 * OFFSCREEN, -2 * OFFSCREEN);
       }
     }
+
+    // Render tactical targeting brackets around current target in main view
+    updateTargetBracket();
 
     // Render tactical radar screen
     drawRadar(delta);
