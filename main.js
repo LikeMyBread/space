@@ -21,6 +21,19 @@ const targetFactionVal = document.getElementById("target-faction-val");
 const targetDistVal = document.getElementById("target-dist-val");
 const targetStateVal = document.getElementById("target-state-val");
 
+const shieldVal = document.getElementById("shield-val");
+const shieldBar = document.getElementById("shield-bar");
+const armorVal = document.getElementById("armor-val");
+const armorBar = document.getElementById("armor-bar");
+const energyVal = document.getElementById("energy-val");
+const energyBar = document.getElementById("energy-bar");
+const fuelVal = document.getElementById("fuel-val");
+const fuelSegmentsContainer = document.getElementById("fuel-segments-container");
+const statusHullName = document.getElementById("status-hull-name");
+const statusEngineName = document.getElementById("status-engine-name");
+const statusSpeedVal = document.getElementById("status-speed-val");
+const statusMassVal = document.getElementById("status-mass-val");
+
 let onTabPressed = null;
 
 const GAME_WIDTH = 1000;
@@ -546,6 +559,14 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     timeToTurnAround,
     distanceRequiredToStop,
     stoppingDistance,
+    shield: 100,
+    maxShield: 100,
+    armor: 100,
+    maxArmor: 100,
+    energy: 100,
+    maxEnergy: 100,
+    jumpFuel: 3,
+    maxJumpFuel: 3,
     hull,
     engine: engineData,
     paint: paintColor,
@@ -841,6 +862,9 @@ function setup() {
     playerLegendDot.style.background = playerShip.data.paint.hex;
   }
 
+  // Initial update for player status display
+  updatePlayerStatusUI();
+
   const ships = [];
 
   // Tactical targeting bracket graphics in the main view
@@ -966,6 +990,62 @@ function setup() {
         playerShip.sprite.removeChild(playerShip.data.engineReverseSprite);
         playerShip.data.engineReverseSprite = null;
       }
+    }
+
+    updatePlayerStatusUI();
+  }
+
+  let prevStatusKey = null;
+
+  function updatePlayerStatusUI() {
+    if (!playerShip || !playerShip.data) return;
+
+    const data = playerShip.data;
+    const currentFuel = Math.max(0, Math.round(data.jumpFuel != null ? data.jumpFuel : 3));
+    const maxFuel = Math.max(1, Math.round(data.maxJumpFuel != null ? data.maxJumpFuel : 3));
+    const shield = Math.max(0, Math.min(100, Math.round(data.shield != null ? data.shield : 100)));
+    const armor = Math.max(0, Math.min(100, Math.round(data.armor != null ? data.armor : 100)));
+    const energy = Math.max(0, Math.min(100, Math.round(data.energy != null ? data.energy : 100)));
+    const hullName = data.hull ? data.hull.name : '';
+    const engineName = data.engine ? data.engine.name : '';
+    const maxSpeed = Math.round(data.maxSpeed || 0);
+
+    const statusKey = `${shield}_${armor}_${energy}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}`;
+    if (statusKey === prevStatusKey) return;
+    prevStatusKey = statusKey;
+
+    // Shield
+    if (shieldVal) shieldVal.textContent = `${shield}%`;
+    if (shieldBar) shieldBar.style.width = `${shield}%`;
+
+    // Armor
+    if (armorVal) armorVal.textContent = `${armor}%`;
+    if (armorBar) armorBar.style.width = `${armor}%`;
+
+    // Energy
+    if (energyVal) energyVal.textContent = `${energy}%`;
+    if (energyBar) energyBar.style.width = `${energy}%`;
+
+    // Jump Fuel (Segmented)
+    if (fuelVal) fuelVal.textContent = `${currentFuel} / ${maxFuel}`;
+    if (fuelSegmentsContainer) {
+      fuelSegmentsContainer.innerHTML = '';
+      for (let i = 0; i < maxFuel; i++) {
+        const seg = document.createElement('div');
+        seg.className = i < currentFuel ? 'fuel-segment filled' : 'fuel-segment empty';
+        fuelSegmentsContainer.appendChild(seg);
+      }
+    }
+
+    // Ship Specs
+    if (statusHullName && data.hull) statusHullName.textContent = data.hull.name;
+    if (statusEngineName && data.engine) {
+      statusEngineName.textContent = data.engine.name === 'turbo_thruster' ? 'Turbo Thruster' : 'Std Thruster';
+    }
+    if (statusSpeedVal) statusSpeedVal.textContent = `${maxSpeed} px/s`;
+    if (statusMassVal && data.hull && data.engine) {
+      const totalMass = data.hull.mass + data.engine.mass;
+      statusMassVal.textContent = `${totalMass.toLocaleString()} kg`;
     }
   }
 
@@ -1792,6 +1872,9 @@ function setup() {
 
     // Render live target view
     drawTargetView();
+
+    // Update player ship status readout
+    updatePlayerStatusUI();
   }
 
   app.ticker.add((ticker) => {

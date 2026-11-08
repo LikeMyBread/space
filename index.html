@@ -19,6 +19,7 @@
       display: flex;
       flex-direction: row;
       align-items: flex-start;
+      justify-content: center;
       gap: 16px;
       max-width: 100%;
     }
@@ -28,6 +29,178 @@
       max-width: 100%;
       display: flex;
       justify-content: center;
+    }
+
+    #player-status-panel {
+      width: 244px;
+      background: #091220;
+      border: 1px solid #1a2942;
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+
+    .status-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #142238;
+      padding-bottom: 8px;
+    }
+
+    .status-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+    }
+
+    .status-badge {
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: #34d399;
+      background: #06281e;
+      border: 1px solid #059669;
+      border-radius: 4px;
+      padding: 2px 7px;
+      letter-spacing: 0.04em;
+    }
+
+    .status-bars-container {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .status-gauge {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .gauge-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .gauge-label {
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .gauge-val {
+      font-weight: 600;
+    }
+
+    .shield-label, .shield-val {
+      color: #38bdf8;
+    }
+
+    .armor-label, .armor-val {
+      color: #fbbf24;
+    }
+
+    .energy-label, .energy-val {
+      color: #34d399;
+    }
+
+    .fuel-label, .fuel-val {
+      color: #c084fc;
+    }
+
+    .gauge-track {
+      width: 100%;
+      height: 10px;
+      background: #0d1829;
+      border: 1px solid #1a2942;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.25s ease-out;
+    }
+
+    .shield-fill {
+      background: linear-gradient(90deg, #0284c7, #38bdf8);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+    }
+
+    .armor-fill {
+      background: linear-gradient(90deg, #d97706, #fbbf24);
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+    }
+
+    .energy-fill {
+      background: linear-gradient(90deg, #059669, #34d399);
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.45);
+    }
+
+    .segmented-track {
+      display: flex;
+      gap: 5px;
+      width: 100%;
+    }
+
+    .fuel-segment {
+      flex: 1;
+      height: 12px;
+      border-radius: 3px;
+      box-sizing: border-box;
+      transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .fuel-segment.filled {
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      border: 1px solid #c084fc;
+      box-shadow: 0 0 8px rgba(168, 85, 247, 0.45);
+    }
+
+    .fuel-segment.empty {
+      background: #0d1829;
+      border: 1px solid #1e293b;
+    }
+
+    .status-specs {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: #060d17;
+      border: 1px solid #142238;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-top: 2px;
+    }
+
+    .spec-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .spec-label {
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .spec-val {
+      color: #94a3b8;
+      font-weight: 600;
     }
 
     #sidebar-panel {
@@ -187,7 +360,7 @@
       flex-direction: column;
       gap: 12px;
       margin-top: 14px;
-      width: 1260px;
+      width: 1520px;
       max-width: 100%;
       background: #091220;
       border: 1px solid #1a2942;
@@ -311,6 +484,83 @@
 </head>
 <body>
   <div id="view-layout">
+    <!-- Player Ship Status (Left) -->
+    <div id="player-status-panel">
+      <div class="status-header">
+        <span class="status-title">SHIP STATUS</span>
+        <span id="player-status-badge" class="status-badge">NOMINAL</span>
+      </div>
+
+      <div class="status-bars-container">
+        <!-- Shield Gauge -->
+        <div class="status-gauge">
+          <div class="gauge-header">
+            <span class="gauge-label shield-label">SHIELD</span>
+            <span id="shield-val" class="gauge-val shield-val">100%</span>
+          </div>
+          <div class="gauge-track">
+            <div id="shield-bar" class="gauge-fill shield-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Armor Gauge -->
+        <div class="status-gauge">
+          <div class="gauge-header">
+            <span class="gauge-label armor-label">ARMOR</span>
+            <span id="armor-val" class="gauge-val armor-val">100%</span>
+          </div>
+          <div class="gauge-track">
+            <div id="armor-bar" class="gauge-fill armor-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Energy Gauge -->
+        <div class="status-gauge">
+          <div class="gauge-header">
+            <span class="gauge-label energy-label">ENERGY</span>
+            <span id="energy-val" class="gauge-val energy-val">100%</span>
+          </div>
+          <div class="gauge-track">
+            <div id="energy-bar" class="gauge-fill energy-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Jump Fuel Gauge (Segmented) -->
+        <div class="status-gauge">
+          <div class="gauge-header">
+            <span class="gauge-label fuel-label">JUMP FUEL</span>
+            <span id="fuel-val" class="gauge-val fuel-val">3 / 3</span>
+          </div>
+          <div id="fuel-segments-container" class="segmented-track">
+            <div class="fuel-segment filled"></div>
+            <div class="fuel-segment filled"></div>
+            <div class="fuel-segment filled"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ship System Readout -->
+      <div class="status-specs">
+        <div class="spec-row">
+          <span class="spec-label">HULL:</span>
+          <span id="status-hull-name" class="spec-val">Anvil</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-label">ENGINE:</span>
+          <span id="status-engine-name" class="spec-val">Standard</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-label">MAX SPEED:</span>
+          <span id="status-speed-val" class="spec-val">106 px/s</span>
+        </div>
+        <div class="spec-row">
+          <span class="spec-label">TOTAL MASS:</span>
+          <span id="status-mass-val" class="spec-val">23,500 kg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Game View -->
     <div id="game-container"></div>
 
     <div id="sidebar-panel">
