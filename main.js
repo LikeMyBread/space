@@ -1234,6 +1234,14 @@ function setup() {
     return nearestTarget;
   }
 
+  function getStrategyDisplayName(strategy) {
+    if (!strategy) return '';
+    const s = String(strategy).toLowerCase().replace(/[^a-z]/g, '');
+    if (s.includes('turn')) return 'TURN FIGHT';
+    if (s.includes('joust')) return 'JOUSTING';
+    return String(strategy).toUpperCase();
+  }
+
   function getLeadSolution(shooter, target) {
     const weapon = (shooter.data.weapons && shooter.data.weapons[0] && shooter.data.weapons[0].weapon)
       ? shooter.data.weapons[0].weapon
@@ -1754,6 +1762,7 @@ function setup() {
     window.aimAndShoot = aimAndShoot;
     window.findNearestHostile = findNearestHostile;
     window.updateNpcCombat = updateNpcCombat;
+    window.getStrategyDisplayName = getStrategyDisplayName;
     Object.defineProperty(window, 'isFighting', {
       get: () => isFighting,
       set: (val) => { isFighting = !!val; },
@@ -2188,6 +2197,10 @@ function setup() {
       } else if (targetShip.data.isDisabled) {
         targetStateVal.textContent = 'DISABLED';
         targetStateVal.style.color = '#f87171';
+      } else if (targetShip.data.combatStrategy && (isFighting || targetShip.data.aiState === 'COMBAT' || targetShip.data.aiState === 'RETREAT')) {
+        const strat = getStrategyDisplayName(targetShip.data.combatStrategy);
+        targetStateVal.textContent = strat;
+        targetStateVal.style.color = '#38bdf8';
       } else {
         targetStateVal.textContent = targetShip.data.aiState || (targetShip.data.isDerelict ? 'DERELICT' : 'IDLE');
         targetStateVal.style.color = '#e2e8f0';
