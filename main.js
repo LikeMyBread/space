@@ -652,10 +652,9 @@ const projectiles = [];
 
 function checkSpeed(vx, vy, speedLimit) {
   const SPEED = Math.sqrt(vx * vx + vy * vy);
-  if (SPEED > speedLimit) {
-    const theta = Math.atan2(vy, vx);
-    vy = speedLimit * Math.sin(theta);
-    vx = speedLimit * Math.cos(theta);
+  if (SPEED > speedLimit && SPEED > 0) {
+    const ratio = speedLimit / SPEED;
+    return { vx: vx * ratio, vy: vy * ratio };
   }
   return { vx: vx, vy: vy };
 }
@@ -865,6 +864,11 @@ function setup() {
     playerShip.data.timeToTurnAround = timeToTurnAround;
     playerShip.data.distanceRequiredToStop = distanceRequiredToStop;
     playerShip.data.stoppingDistance = (maxSpeed * timeToTurnAround) + distanceRequiredToStop;
+
+    // Clamp existing player velocity if switching to an engine with a lower top speed
+    const clampedPlayerSpeed = checkSpeed(playerShip.data.vx, playerShip.data.vy, maxSpeed);
+    playerShip.data.vx = clampedPlayerSpeed.vx;
+    playerShip.data.vy = clampedPlayerSpeed.vy;
 
     // Update ship container pivot for new hull center
     playerShip.sprite.pivot.set(currentHull.pivot.x, currentHull.pivot.y);
@@ -1499,6 +1503,8 @@ function setup() {
       } else if (shipData.aiState === 'BRAKE') {
         if (relSpeed <= matchTolerance) {
           shipData.aiState = dist <= 30 ? 'FORMATION' : 'APPROACH';
+        } else if (dist > brakeThreshold * 1.3 + 10) {
+          shipData.aiState = 'APPROACH';
         }
       } else if (shipData.aiState === 'FORMATION') {
         // Fall out of formation if displaced from station or relative speed becomes significant
@@ -1517,7 +1523,7 @@ function setup() {
           Math.sqrt(2 * shipData.accel * Math.max(0, dist - 12)),
           turnLimitedSpeed
         );
-        const desiredSpeed = Math.max(15, safeApproachSpeed);
+        const desiredSpeed = Math.min(shipData.maxSpeed, Math.max(15, safeApproachSpeed));
 
         const desiredVx = dist > 0 ? (dx / dist) * desiredSpeed : 0;
         const desiredVy = dist > 0 ? (dy / dist) * desiredSpeed : 0;
@@ -1543,8 +1549,9 @@ function setup() {
             if (currentSpeedInDir < targetSpeedInDir) {
               const dvNeeded = targetSpeedInDir - currentSpeedInDir;
               const step = Math.min(dvMax, dvNeeded);
-              shipData.vx += step * forwardX;
-              shipData.vy += step * forwardY;
+              const clamped = checkSpeed(shipData.vx + step * forwardX, shipData.vy + step * forwardY, shipData.maxSpeed);
+              shipData.vx = clamped.vx;
+              shipData.vy = clamped.vy;
               if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
               if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
             } else {
@@ -1574,8 +1581,9 @@ function setup() {
             const dvNeeded = relVx * forwardX + relVy * forwardY;
             if (dvNeeded > 0) {
               const step = Math.min(dvMax, dvNeeded);
-              shipData.vx -= step * forwardX;
-              shipData.vy -= step * forwardY;
+              const clamped = checkSpeed(shipData.vx - step * forwardX, shipData.vy - step * forwardY, shipData.maxSpeed);
+              shipData.vx = clamped.vx;
+              shipData.vy = clamped.vy;
               if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = true;
               if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
             } else {
@@ -1587,8 +1595,9 @@ function setup() {
             const dvNeeded = -relVx * forwardX - relVy * forwardY;
             if (dvNeeded > 0) {
               const step = Math.min(dvMax, dvNeeded);
-              shipData.vx += step * forwardX;
-              shipData.vy += step * forwardY;
+              const clamped = checkSpeed(shipData.vx + step * forwardX, shipData.vy + step * forwardY, shipData.maxSpeed);
+              shipData.vx = clamped.vx;
+              shipData.vy = clamped.vy;
               if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
               if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
             } else {
@@ -1620,14 +1629,16 @@ function setup() {
 
         if (dvForwardNeeded > 0.05) {
           const step = Math.min(dvMax, dvForwardNeeded);
-          shipData.vx += step * forwardX;
-          shipData.vy += step * forwardY;
+          const clamped = checkSpeed(shipData.vx + step * forwardX, shipData.vy + step * forwardY, shipData.maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
           if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         } else if (dvForwardNeeded < -0.05 && shipData.engine.reversible) {
           const step = Math.min(dvMax, -dvForwardNeeded);
-          shipData.vx -= step * forwardX;
-          shipData.vy -= step * forwardY;
+          const clamped = checkSpeed(shipData.vx - step * forwardX, shipData.vy - step * forwardY, shipData.maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = true;
           if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
         } else {
@@ -1635,6 +1646,11 @@ function setup() {
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
       }
+
+      // Hard physical constraint: ensure ship never exceeds its engine's max speed
+      const speedCheck = checkSpeed(shipData.vx, shipData.vy, shipData.maxSpeed);
+      shipData.vx = speedCheck.vx;
+      shipData.vy = speedCheck.vy;
 
       shipSprite.x -= (playerShip.data.vx - shipData.vx) * delta * (60 / 1000) || 0;
       shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
