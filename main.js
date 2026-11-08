@@ -592,6 +592,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     armor: 10,
     maxArmor: 10,
     shieldHitTimer: 0,
+    shieldDownDelay: 0,
     energy: 100,
     maxEnergy: 100,
     jumpFuel: 3,
@@ -977,6 +978,13 @@ function setup() {
       const s = allShips[i];
       if (!s || !s.data) continue;
       const maxS = s.data.maxShield || 10;
+
+      // Delay recharging by 1 second after shields go down
+      if (s.data.shieldDownDelay > 0) {
+        s.data.shieldDownDelay = Math.max(0, s.data.shieldDownDelay - dtSec);
+        continue;
+      }
+
       if (s.data.shield < maxS) {
         s.data.shield = Math.min(maxS, s.data.shield + dtSec * 1.0);
       }
@@ -1778,17 +1786,43 @@ function setup() {
 
         if (hasShield) {
           if (distSq <= shieldRadius * shieldRadius) {
-            // Collision with outer shield hitbox: absorb damage and trigger shield circle
-            targetShip.data.shield = Math.max(0, targetShip.data.shield - proj.damage);
+            // Collision with outer shield hitbox: trigger shield impact visual effect
             targetShip.data.shieldHitTimer = 0.25;
-            hit = true;
-            break;
+
+            if (proj.damage <= targetShip.data.shield) {
+              // Shield fully absorbs the projectile damage
+              targetShip.data.shield -= proj.damage;
+              if (targetShip.data.shield <= 0) {
+                targetShip.data.shield = 0;
+                targetShip.data.shieldDownDelay = 1.0;
+              }
+              hit = true;
+              break;
+            } else {
+              // Projectile does more damage than shield can absorb:
+              // Partially block: subtract remaining shield strength from projectile damage
+              proj.damage -= targetShip.data.shield;
+              targetShip.data.shield = 0;
+              targetShip.data.shieldDownDelay = 1.0;
+
+              // If projectile has also reached inner hull hitbox in the same frame, impact armor
+              if (distSq <= hullRadius * hullRadius) {
+                targetShip.data.hullHealth = Math.max(0, targetShip.data.hullHealth - proj.damage);
+                targetShip.data.armor = targetShip.data.hullHealth;
+                hit = true;
+                break;
+              }
+
+              // Otherwise projectile continues flying with remaining damage to potentially impact armor
+              break;
+            }
           }
         } else {
           if (distSq <= hullRadius * hullRadius) {
             // Collision with inner hull hitbox: shields are down, absorb damage into hull
             targetShip.data.hullHealth = Math.max(0, targetShip.data.hullHealth - proj.damage);
             targetShip.data.armor = targetShip.data.hullHealth;
+            targetShip.data.shieldDownDelay = 1.0;
             hit = true;
             break;
           }
