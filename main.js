@@ -930,7 +930,7 @@ function fireShipWeapons(ship) {
 }
 
 function setup() {
-  const numberOfStars = 100;
+  const numberOfStars = 20;
   const hasParticleSupport = typeof PIXI !== 'undefined' && typeof PIXI.ParticleContainer === 'function' && typeof PIXI.Particle === 'function';
   const starTexture = (typeof PIXI !== 'undefined' && PIXI.Assets && typeof PIXI.Assets.get === 'function') ? PIXI.Assets.get("img/stars/Star.png") : null;
 
@@ -1158,8 +1158,14 @@ function setup() {
       if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
       if (s.data.shieldHitTimer > 0) {
         s.data.shieldHitTimer = Math.max(0, s.data.shieldHitTimer - dtSec);
-        const alpha = Math.min(1, s.data.shieldHitTimer / 0.25);
         const r = (s.data.hull && s.data.hull.shieldRadius) ? s.data.hull.shieldRadius : 20;
+
+        // Offscreen culling: skip drawing shield graphics if outside viewport
+        if (s.sprite.x + r < 0 || s.sprite.x - r > GAME_WIDTH || s.sprite.y + r < 0 || s.sprite.y - r > GAME_HEIGHT) {
+          continue;
+        }
+
+        const alpha = Math.min(1, s.data.shieldHitTimer / 0.25);
         shieldGraphics.circle(s.sprite.x, s.sprite.y, r);
         shieldGraphics.fill({ color: 0x38bdf8, alpha: 0.22 * alpha });
         shieldGraphics.stroke({ width: 2, color: 0x38bdf8, alpha: 0.85 * alpha });
@@ -1904,6 +1910,8 @@ function setup() {
     });
     window.playerShip = playerShip;
     window.spawnNpcShips = spawnNpcShips;
+    window.ships = ships;
+    window.derelictShip = derelictShip;
   }
 
   if (targetIdBadge) {
@@ -2846,6 +2854,35 @@ function setup() {
       derelictShip.data.vy = 0;
       derelictShip.sprite.x -= playerShip.data.vx * delta * (60 / 1000) || 0;
       derelictShip.sprite.y -= playerShip.data.vy * delta * (60 / 1000) || 0;
+    }
+
+    // Viewport / Frustum Culling:
+    // Toggle ship.sprite.visible so PixiJS skips container transforms and draw calls
+    // for all offscreen ships. All simulation, physics, AI, weapons, collisions,
+    // and radar blips continue operating at 100% fidelity.
+    const CULL_MARGIN = 80;
+    for (let i = 0; i < ships.length; i++) {
+      const s = ships[i];
+      if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
+      const sx = s.sprite.x;
+      const sy = s.sprite.y;
+      s.sprite.visible = (
+        sx >= -CULL_MARGIN &&
+        sx <= GAME_WIDTH + CULL_MARGIN &&
+        sy >= -CULL_MARGIN &&
+        sy <= GAME_HEIGHT + CULL_MARGIN
+      );
+    }
+
+    if (derelictShip && derelictShip.sprite && derelictShip.data && !derelictShip.data.isDestroyed) {
+      const dx = derelictShip.sprite.x;
+      const dy = derelictShip.sprite.y;
+      derelictShip.sprite.visible = (
+        dx >= -CULL_MARGIN &&
+        dx <= GAME_WIDTH + CULL_MARGIN &&
+        dy >= -CULL_MARGIN &&
+        dy <= GAME_HEIGHT + CULL_MARGIN
+      );
     }
 
     for (var i = 0; i < stars.length; i++) {
