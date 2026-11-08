@@ -166,9 +166,9 @@ const WEAPONS_DATA = {
     name: 'Light Blaster',
     img: "img/weapons/Blaster.png",
     size: 0,
-    attachmentPoint: {x: 2, y: 19}, // down and to the right of top left corner (0-indexed)
+    attachmentPoint: {x: 2, y: 10}, // down and to the right of top left corner (0-indexed)
     projectileOrigin: {x: 2, y: 2}, // relative to weapon top-left
-    fireRate: 4, // shots per second
+    fireRate: 2, // shots per second (halved from 4)
     projectile: {
       img: "img/weapons/Blaster Bolt.png",
       pivot: {x: 1, y: 1},
@@ -502,7 +502,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
   const weapons = weaponsChoice || hull.hardpoints.map((hp) => ({
     weapon: WEAPONS_DATA.light_blaster,
     hardpoint: hp,
-    lastFired: 0,
+    lastFired: -Infinity,
   }));
 
   // Bake static components (body + engine + weapons with custom paint color) into a single image texture
@@ -742,15 +742,59 @@ function spawnProjectile(ship, weaponSlot) {
   });
 }
 
+function getShipWeaponGroups(ship) {
+  if (!ship.data.weapons || ship.data.weapons.length === 0) return [];
+  if (ship.data.weaponGroups && ship.data._weaponsRef === ship.data.weapons) {
+    return ship.data.weaponGroups;
+  }
+
+  const groupMap = new Map();
+  for (const slot of ship.data.weapons) {
+    const key = slot.weapon.name || slot.weapon.img;
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        weapon: slot.weapon,
+        slots: [],
+        lastFired: -Infinity,
+        nextIndex: 0,
+      });
+    }
+    groupMap.get(key).slots.push(slot);
+  }
+
+  ship.data.weaponGroups = Array.from(groupMap.values());
+  ship.data._weaponsRef = ship.data.weapons;
+  return ship.data.weaponGroups;
+}
+
 function fireShipWeapons(ship) {
   const now = performance.now();
-  if (!ship.data.weapons) return;
+  const groups = getShipWeaponGroups(ship);
+  if (!groups || groups.length === 0) return;
 
-  for (const weaponSlot of ship.data.weapons) {
-    const cooldownMs = 1000 / weaponSlot.weapon.fireRate;
-    if (now - weaponSlot.lastFired >= cooldownMs) {
-      weaponSlot.lastFired = now;
-      spawnProjectile(ship, weaponSlot);
+  for (const group of groups) {
+    const count = group.slots.length;
+    if (count === 0) continue;
+
+    const cooldownMs = 1000 / group.weapon.fireRate;
+    const staggerInterval = cooldownMs / count;
+
+    // If the weapon group has been idle for at least a full weapon cooldown,
+    // reset to the first weapon so it fires immediately upon engaging weapons.
+    if (now - group.lastFired >= cooldownMs) {
+      group.nextIndex = 0;
+    }
+
+    // Check if the stagger interval has passed since the group last fired
+    if (now - group.lastFired >= staggerInterval) {
+      const slot = group.slots[group.nextIndex];
+      // Verify that this individual weapon slot has cooled down
+      if (now - slot.lastFired >= cooldownMs) {
+        slot.lastFired = now;
+        group.lastFired = now;
+        group.nextIndex = (group.nextIndex + 1) % count;
+        spawnProjectile(ship, slot);
+      }
     }
   }
 }
@@ -850,7 +894,7 @@ function setup() {
       playerShip.data.weapons = hull.hardpoints.map((hp) => ({
         weapon: WEAPONS_DATA.light_blaster,
         hardpoint: hp,
-        lastFired: 0,
+        lastFired: -Infinity,
       }));
     }
     if (engine) playerShip.data.engine = engine;
