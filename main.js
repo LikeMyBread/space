@@ -12,6 +12,9 @@ const GAME_WIDTH = 1000;
 const GAME_HEIGHT = 600;
 const OFFSCREEN = 100;
 const PIXELS_PER_METER = 1;
+const TURN_RATE = 0.04; // rad/frame
+const ACCEL_LIMIT = 10; // seconds
+const FORMATION_DISTANCE = 100; // px
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -475,12 +478,20 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
   }
 
   const accel = (engineData.thrust * 1000) / (hull.mass + engineData.mass); // m/s/s
+  const maxSpeed = accel * ACCEL_LIMIT; // px/s
+  const timeToTurnAround = Math.PI / (TURN_RATE * 60); // seconds to turn 180 degrees
+  const distanceRequiredToStop = (maxSpeed * maxSpeed) / (2 * accel); // px
+  const stoppingDistance = (maxSpeed * timeToTurnAround) + distanceRequiredToStop; // px
 
   const newData = {
     id: nextShipId++,
     vx: 0,
     vy: 0,
     accel,
+    maxSpeed,
+    timeToTurnAround,
+    distanceRequiredToStop,
+    stoppingDistance,
     hull,
     engine: engineData,
     paint: paintColor,
@@ -660,8 +671,15 @@ function setup() {
     const currentEngine = playerShip.data.engine;
     const currentPaint = playerShip.data.paint;
 
-    // Recalculate acceleration
+    // Recalculate acceleration and stopping distance metrics
     playerShip.data.accel = (currentEngine.thrust * 1000) / (currentHull.mass + currentEngine.mass);
+    const maxSpeed = playerShip.data.accel * ACCEL_LIMIT;
+    const timeToTurnAround = Math.PI / (TURN_RATE * 60);
+    const distanceRequiredToStop = (maxSpeed * maxSpeed) / (2 * playerShip.data.accel);
+    playerShip.data.maxSpeed = maxSpeed;
+    playerShip.data.timeToTurnAround = timeToTurnAround;
+    playerShip.data.distanceRequiredToStop = distanceRequiredToStop;
+    playerShip.data.stoppingDistance = (maxSpeed * timeToTurnAround) + distanceRequiredToStop;
 
     // Update ship container pivot for new hull center
     playerShip.sprite.pivot.set(currentHull.pivot.x, currentHull.pivot.y);
@@ -736,8 +754,6 @@ function setup() {
     });
   }
 
-  const TURN_RATE = 0.04;
-  const ACCEL_LIMIT = 10; // s
   playerShip.data.vx = 0;
   playerShip.data.vy = 0;
 
@@ -831,13 +847,25 @@ function setup() {
       const dv = shipData.accel * delta * (60 / 1000);
       const matchTolerance = Math.max(2.5, dv * 1.5);
 
+      // Speed directed towards the player (positive when closing distance)
+      const speedTowardsPlayer = dist > 0 ? (relVx * (-dx / dist) + relVy * (-dy / dist)) : 0;
+      const approachSpeed = Math.max(0, -speedTowardsPlayer);
+
+      // Stopping distance based on approach speed and precalculated turn time
+      const turnTime = shipData.engine.reversible ? 0 : (shipData.timeToTurnAround || Math.PI / (TURN_RATE * 60));
+      const currentStopDist = (approachSpeed * turnTime) + (approachSpeed * approachSpeed) / (2 * shipData.accel);
+      const minStoppingDist = Math.min(shipData.stoppingDistance || currentStopDist, currentStopDist);
+
+      // Begin turning a bit ahead of that minimum stopping distance to stop in formation (~100px)
+      const brakeThreshold = FORMATION_DISTANCE + minStoppingDist * 1.2;
+
       // Behavior state transitions
       if (!shipData.aiState) {
-        shipData.aiState = dist > 100 ? 'APPROACH' : 'FORMATION';
+        shipData.aiState = dist > brakeThreshold ? 'APPROACH' : 'FORMATION';
       }
 
       if (shipData.aiState === 'APPROACH') {
-        if (dist <= 100) {
+        if (dist <= brakeThreshold) {
           shipData.aiState = 'BRAKE';
         }
       } else if (shipData.aiState === 'BRAKE') {
@@ -849,8 +877,8 @@ function setup() {
           shipData.aiState = 'FORMATION';
         }
       } else if (shipData.aiState === 'FORMATION') {
-        // Resume approach if distance exceeds formation zone or player accelerates away
-        if (dist > 120 || relSpeed > 5.0) {
+        // Resume approach if distance exceeds formation zone or relative speed indicates player pulling away
+        if (dist > FORMATION_DISTANCE + 30 || relSpeed > 5.0) {
           shipData.aiState = 'APPROACH';
         }
       }
@@ -874,38 +902,37 @@ function setup() {
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
       } else if (shipData.aiState === 'BRAKE') {
-        if (shipData.engine.reversible) {
-          // Reversible engine: face relative velocity vector and apply reverse thrust
-          const revAngle = relSpeed > 1 ? (Math.PI / 2 + Math.atan2(relVy, relVx)) : (Math.PI / 2 + Math.atan2(dy, dx));
-          let angleDiff = normalizeAngle(revAngle - shipSprite.rotation);
-          shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, TURN_RATE), -TURN_RATE));
+        // Force vector needed to match velocity: -(relVx, relVy)
+        const targetForceAngle = Math.PI / 2 + Math.atan2(-relVy, -relVx);
+        const revHeading = normalizeAngle(targetForceAngle + Math.PI);
 
-          if (Math.abs(angleDiff) < 0.35) {
+        const diffForward = Math.abs(normalizeAngle(targetForceAngle - shipSprite.rotation));
+        const diffReverse = Math.abs(normalizeAngle(revHeading - shipSprite.rotation));
+
+        // Bias toward forward thrusters whenever there is an arbitrary choice
+        const useReverse = shipData.engine.reversible && (diffReverse < diffForward - 0.2);
+
+        const targetAngle = useReverse ? revHeading : targetForceAngle;
+        let angleDiff = normalizeAngle(targetAngle - shipSprite.rotation);
+        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, TURN_RATE), -TURN_RATE));
+
+        if (Math.abs(angleDiff) < 0.35) {
+          if (useReverse) {
             const newSpeed = applyReverseThrust(ship, delta, ACCEL_LIMIT);
             shipData.vx = newSpeed.vx;
             shipData.vy = newSpeed.vy;
             if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = true;
             if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           } else {
-            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
-            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
-          }
-        } else {
-          // Non-reversible engine: turn around and thrust in the opposite direction
-          const oppAngle = Math.PI / 2 + Math.atan2(-relVy, -relVx);
-          let angleDiff = normalizeAngle(oppAngle - shipSprite.rotation);
-          shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, TURN_RATE), -TURN_RATE));
-
-          if (Math.abs(angleDiff) < 0.35) {
             const newSpeed = applyThrust(ship, delta, ACCEL_LIMIT);
             shipData.vx = newSpeed.vx;
             shipData.vy = newSpeed.vy;
             if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
             if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
-          } else {
-            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
-            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
           }
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
       } else if (shipData.aiState === 'FORMATION') {
         // Matched velocity: turn to face the same direction as the player to follow their lead
