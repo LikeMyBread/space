@@ -41,6 +41,7 @@ const statusSpeedVal = document.getElementById("status-speed-val");
 const statusMassVal = document.getElementById("status-mass-val");
 
 let onTabPressed = null;
+let onSelectNearestHostile = null;
 
 const GAME_WIDTH = 1000;
 const GAME_HEIGHT = 600;
@@ -65,8 +66,35 @@ function getRadarRadiusFraction(dist) {
   return Math.log1p(dist / RADAR_LOG_K) * RADAR_LOG_NORM;
 }
 
+function getRadarDotPosition(targetShip, playerShip) {
+  if (!targetShip || !targetShip.sprite || !playerShip || !playerShip.sprite) return null;
+  const cx = 110;
+  const cy = 100;
+  const maxR = 83; // Scope radius 86 minus margin 3
+
+  const dx = targetShip.sprite.x - playerShip.sprite.x;
+  const dy = targetShip.sprite.y - playerShip.sprite.y;
+  const dist = Math.hypot(dx, dy);
+
+  let r;
+  if (dist >= RADAR_MAX_DIST) {
+    r = maxR;
+  } else if (dist <= 0) {
+    r = 0;
+  } else {
+    r = maxR * getRadarRadiusFraction(dist);
+  }
+
+  const scaleR = dist > 0 ? (r / dist) : 0;
+  return {
+    rx: cx + dx * scaleR,
+    ry: cy + dy * scaleR,
+  };
+}
+
 if (typeof window !== 'undefined') {
   window.getRadarRadiusFraction = getRadarRadiusFraction;
+  window.getRadarDotPosition = getRadarDotPosition;
   window.RADAR_RINGS = RADAR_RINGS;
   window.RADAR_MAX_DIST = RADAR_MAX_DIST;
 }
@@ -110,6 +138,15 @@ function handleKeydown(event) {
     event.preventDefault();
     if (typeof onTabPressed === 'function') {
       onTabPressed(event.shiftKey);
+    }
+    return;
+  }
+
+  // The X key selects the nearest hostile ship
+  if (code === 'KeyX' || key === 'x' || event.keyCode === 88) {
+    event.preventDefault();
+    if (typeof onSelectNearestHostile === 'function') {
+      onSelectNearestHostile();
     }
     return;
   }
@@ -1883,10 +1920,153 @@ function setup() {
 
   onTabPressed = cycleTarget;
 
+  // The X key selects the nearest hostile ship relative to player
+  function selectNearestHostile() {
+    if (!playerShip) return null;
+    const allCombatants = [playerShip, derelictShip, ...ships];
+    const nearest = findNearestHostile(playerShip, allCombatants);
+    if (nearest && nearest.data) {
+      currentTargetId = nearest.data.id;
+    }
+    return nearest;
+  }
+  onSelectNearestHostile = selectNearestHostile;
+
+  // Main screen click targeting: selects closest targetable ship to clicked stage coordinates
+  function selectClosestShipToStagePoint(clickX, clickY) {
+    const candidateShips = getTargetableShips();
+    if (candidateShips.length === 0) return null;
+
+    let closestShip = null;
+    let closestDistSq = Infinity;
+
+    for (let i = 0; i < candidateShips.length; i++) {
+      const s = candidateShips[i];
+      if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
+      const dx = s.sprite.x - clickX;
+      const dy = s.sprite.y - clickY;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq < closestDistSq) {
+        closestDistSq = distSq;
+        closestShip = s;
+      }
+    }
+
+    if (closestShip && closestShip.data) {
+      currentTargetId = closestShip.data.id;
+    }
+    return closestShip;
+  }
+
+  function onMainScreenClick(event) {
+    if (!app || !app.canvas) return;
+    const canvas = app.canvas;
+    const rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: canvas.width || GAME_WIDTH, height: canvas.height || GAME_HEIGHT };
+    const rectW = rect.width > 0 ? rect.width : (canvas.width || GAME_WIDTH);
+    const rectH = rect.height > 0 ? rect.height : (canvas.height || GAME_HEIGHT);
+    const scaleX = (canvas.width || GAME_WIDTH) / rectW;
+    const scaleY = (canvas.height || GAME_HEIGHT) / rectH;
+
+    let clickX, clickY;
+    if (event.clientX != null && rect.left != null) {
+      clickX = (event.clientX - rect.left) * scaleX;
+      clickY = (event.clientY - rect.top) * scaleY;
+    } else if (event.offsetX != null) {
+      clickX = event.offsetX * scaleX;
+      clickY = event.offsetY * scaleY;
+    } else if (event.x != null) {
+      clickX = event.x;
+      clickY = event.y;
+    } else {
+      clickX = 0;
+      clickY = 0;
+    }
+
+    return selectClosestShipToStagePoint(clickX, clickY);
+  }
+
+  // Radar screen click targeting: selects ship whose dot is closest to clicked radar coordinates
+  function selectClosestShipToRadarPoint(clickX, clickY) {
+    const candidateShips = getTargetableShips();
+    if (candidateShips.length === 0 || !playerShip) return null;
+
+    let closestShip = null;
+    let closestDistSq = Infinity;
+
+    for (let i = 0; i < candidateShips.length; i++) {
+      const s = candidateShips[i];
+      if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
+      const pos = getRadarDotPosition(s, playerShip);
+      if (!pos) continue;
+
+      const dx = pos.rx - clickX;
+      const dy = pos.ry - clickY;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq < closestDistSq) {
+        closestDistSq = distSq;
+        closestShip = s;
+      }
+    }
+
+    if (closestShip && closestShip.data) {
+      currentTargetId = closestShip.data.id;
+    }
+    return closestShip;
+  }
+
+  function onRadarScreenClick(event) {
+    if (!radarCanvas || !playerShip) return;
+    const rect = radarCanvas.getBoundingClientRect ? radarCanvas.getBoundingClientRect() : { left: 0, top: 0, width: radarCanvas.width, height: radarCanvas.height };
+    const rectW = rect.width > 0 ? rect.width : radarCanvas.width;
+    const rectH = rect.height > 0 ? rect.height : radarCanvas.height;
+    const scaleX = radarCanvas.width / rectW;
+    const scaleY = radarCanvas.height / rectH;
+
+    let clickX, clickY;
+    if (event.clientX != null && rect.left != null) {
+      clickX = (event.clientX - rect.left) * scaleX;
+      clickY = (event.clientY - rect.top) * scaleY;
+    } else if (event.offsetX != null) {
+      clickX = event.offsetX * scaleX;
+      clickY = event.offsetY * scaleY;
+    } else if (event.x != null) {
+      clickX = event.x;
+      clickY = event.y;
+    } else {
+      clickX = 0;
+      clickY = 0;
+    }
+
+    return selectClosestShipToRadarPoint(clickX, clickY);
+  }
+
+  if (app && app.canvas) {
+    app.canvas.addEventListener('click', onMainScreenClick);
+  }
+  const gameContainer = document.getElementById('game-container');
+  if (gameContainer) {
+    gameContainer.addEventListener('click', (event) => {
+      if (app && app.canvas && event.target === app.canvas) return;
+      onMainScreenClick(event);
+    });
+  }
+
+  if (radarCanvas) {
+    radarCanvas.addEventListener('click', onRadarScreenClick);
+  }
+
   if (typeof window !== 'undefined') {
     window.getTargetableShips = getTargetableShips;
     window.getCurrentTarget = getCurrentTarget;
     window.cycleTarget = cycleTarget;
+    window.selectNearestHostile = selectNearestHostile;
+    window.selectClosestShipToStagePoint = selectClosestShipToStagePoint;
+    window.selectClosestShipToRadarPoint = selectClosestShipToRadarPoint;
+    window.onMainScreenClick = onMainScreenClick;
+    window.onRadarScreenClick = onRadarScreenClick;
+    window.getRadarDotPosition = getRadarDotPosition;
     window.drawTargetView = drawTargetView;
     window.drawRadar = drawRadar;
     window.getRadarRadiusFraction = getRadarRadiusFraction;
@@ -1994,24 +2174,11 @@ function setup() {
       const color = (targetShip.data && targetShip.data.paint) ? targetShip.data.paint.hex : '#ffffff';
 
       if (!isPlayer) {
-        const dx = targetShip.sprite.x - playerShip.sprite.x;
-        const dy = targetShip.sprite.y - playerShip.sprite.y;
-        const dist = Math.hypot(dx, dy);
-
-        let r;
-        if (dist >= RADAR_MAX_DIST) {
-          // Contacts at 4000m+ are clamped to the outermost ring via separate check
-          r = maxR;
-        } else if (dist <= 0) {
-          r = 0;
-        } else {
-          // Continuous exponential/logarithmic range mapping for < 4000m
-          r = maxR * getRadarRadiusFraction(dist);
+        const dotPos = getRadarDotPosition(targetShip, playerShip);
+        if (dotPos) {
+          rx = dotPos.rx;
+          ry = dotPos.ry;
         }
-
-        const scaleR = dist > 0 ? (r / dist) : 0;
-        rx = cx + dx * scaleR;
-        ry = cy + dy * scaleR;
       }
 
       if (isPlayer) {
