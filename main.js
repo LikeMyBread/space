@@ -842,6 +842,60 @@ function setup() {
   playerShip.sprite.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
   app.stage.addChild(playerShip.sprite);
 
+  let prevStatusKey = null;
+
+  function updatePlayerStatusUI() {
+    if (!playerShip || !playerShip.data) return;
+
+    const data = playerShip.data;
+    const currentFuel = Math.max(0, Math.round(data.jumpFuel != null ? data.jumpFuel : 3));
+    const maxFuel = Math.max(1, Math.round(data.maxJumpFuel != null ? data.maxJumpFuel : 3));
+    const shield = Math.max(0, Math.min(100, Math.round(data.shield != null ? data.shield : 100)));
+    const armor = Math.max(0, Math.min(100, Math.round(data.armor != null ? data.armor : 100)));
+    const energy = Math.max(0, Math.min(100, Math.round(data.energy != null ? data.energy : 100)));
+    const hullName = data.hull ? data.hull.name : '';
+    const engineName = data.engine ? data.engine.name : '';
+    const maxSpeed = Math.round(data.maxSpeed || 0);
+
+    const statusKey = `${shield}_${armor}_${energy}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}`;
+    if (statusKey === prevStatusKey) return;
+    prevStatusKey = statusKey;
+
+    // Shield
+    if (shieldVal) shieldVal.textContent = `${shield}%`;
+    if (shieldBar) shieldBar.style.width = `${shield}%`;
+
+    // Armor
+    if (armorVal) armorVal.textContent = `${armor}%`;
+    if (armorBar) armorBar.style.width = `${armor}%`;
+
+    // Energy
+    if (energyVal) energyVal.textContent = `${energy}%`;
+    if (energyBar) energyBar.style.width = `${energy}%`;
+
+    // Jump Fuel (Segmented)
+    if (fuelVal) fuelVal.textContent = `${currentFuel} / ${maxFuel}`;
+    if (fuelSegmentsContainer) {
+      fuelSegmentsContainer.innerHTML = '';
+      for (let i = 0; i < maxFuel; i++) {
+        const seg = document.createElement('div');
+        seg.className = i < currentFuel ? 'fuel-segment filled' : 'fuel-segment empty';
+        fuelSegmentsContainer.appendChild(seg);
+      }
+    }
+
+    // Ship Specs
+    if (statusHullName && data.hull) statusHullName.textContent = data.hull.name;
+    if (statusEngineName && data.engine) {
+      statusEngineName.textContent = data.engine.name === 'turbo_thruster' ? 'Turbo Thruster' : 'Std Thruster';
+    }
+    if (statusSpeedVal) statusSpeedVal.textContent = `${maxSpeed} px/s`;
+    if (statusMassVal && data.hull && data.engine) {
+      const totalMass = data.hull.mass + data.engine.mass;
+      statusMassVal.textContent = `${totalMass.toLocaleString()} kg`;
+    }
+  }
+
   // Derelict test ship that simply floats in place and does nothing
   const derelictHull = HULLS_DATA.find((h) => h.name === 'Boat') || randomChoice(HULLS_DATA);
   const derelictEngine = ENGINES_DATA[0];
@@ -993,60 +1047,6 @@ function setup() {
     }
 
     updatePlayerStatusUI();
-  }
-
-  let prevStatusKey = null;
-
-  function updatePlayerStatusUI() {
-    if (!playerShip || !playerShip.data) return;
-
-    const data = playerShip.data;
-    const currentFuel = Math.max(0, Math.round(data.jumpFuel != null ? data.jumpFuel : 3));
-    const maxFuel = Math.max(1, Math.round(data.maxJumpFuel != null ? data.maxJumpFuel : 3));
-    const shield = Math.max(0, Math.min(100, Math.round(data.shield != null ? data.shield : 100)));
-    const armor = Math.max(0, Math.min(100, Math.round(data.armor != null ? data.armor : 100)));
-    const energy = Math.max(0, Math.min(100, Math.round(data.energy != null ? data.energy : 100)));
-    const hullName = data.hull ? data.hull.name : '';
-    const engineName = data.engine ? data.engine.name : '';
-    const maxSpeed = Math.round(data.maxSpeed || 0);
-
-    const statusKey = `${shield}_${armor}_${energy}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}`;
-    if (statusKey === prevStatusKey) return;
-    prevStatusKey = statusKey;
-
-    // Shield
-    if (shieldVal) shieldVal.textContent = `${shield}%`;
-    if (shieldBar) shieldBar.style.width = `${shield}%`;
-
-    // Armor
-    if (armorVal) armorVal.textContent = `${armor}%`;
-    if (armorBar) armorBar.style.width = `${armor}%`;
-
-    // Energy
-    if (energyVal) energyVal.textContent = `${energy}%`;
-    if (energyBar) energyBar.style.width = `${energy}%`;
-
-    // Jump Fuel (Segmented)
-    if (fuelVal) fuelVal.textContent = `${currentFuel} / ${maxFuel}`;
-    if (fuelSegmentsContainer) {
-      fuelSegmentsContainer.innerHTML = '';
-      for (let i = 0; i < maxFuel; i++) {
-        const seg = document.createElement('div');
-        seg.className = i < currentFuel ? 'fuel-segment filled' : 'fuel-segment empty';
-        fuelSegmentsContainer.appendChild(seg);
-      }
-    }
-
-    // Ship Specs
-    if (statusHullName && data.hull) statusHullName.textContent = data.hull.name;
-    if (statusEngineName && data.engine) {
-      statusEngineName.textContent = data.engine.name === 'turbo_thruster' ? 'Turbo Thruster' : 'Std Thruster';
-    }
-    if (statusSpeedVal) statusSpeedVal.textContent = `${maxSpeed} px/s`;
-    if (statusMassVal && data.hull && data.engine) {
-      const totalMass = data.hull.mass + data.engine.mass;
-      statusMassVal.textContent = `${totalMass.toLocaleString()} kg`;
-    }
   }
 
   // Synchronize dropdown controls with player's loadout
