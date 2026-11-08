@@ -177,12 +177,14 @@ const FACTION_PAINTS = [
 const WEAPONS_DATA = {
   light_blaster: {
     name: 'Light Blaster',
+    damage: 1,
     img: "img/weapons/Blaster.png",
     size: 0,
     attachmentPoint: {x: 2, y: 10}, // down and to the right of top left corner (0-indexed)
     projectileOrigin: {x: 2, y: 2}, // relative to weapon top-left
     fireRate: 2, // shots per second (halved from 4)
     projectile: {
+      damage: 1,
       img: "img/weapons/Blaster Bolt.png",
       pivot: {x: 1, y: 1},
       speed: 100, // px/s (doubled from 50 px/s)
@@ -200,6 +202,8 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 17},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Anvil.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -214,6 +218,8 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 17},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Avocado.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -228,6 +234,8 @@ const HULLS_DATA = [
     pivot: {x: 16, y: 15},
     engine_mount: {x: 16, y: 28},
     img: "img/ships/Boat.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -247,6 +255,8 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 18},
     engine_mount: {x: 15, y: 25},
     img: "img/ships/Crab.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -266,6 +276,8 @@ const HULLS_DATA = [
     pivot: {x: 14, y: 16},
     engine_mount: {x: 14, y: 25},
     img: "img/ships/Delta.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -280,6 +292,8 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 14},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Hammer.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -294,6 +308,8 @@ const HULLS_DATA = [
     pivot: {x: 9, y: 12},
     engine_mount: {x: 9, y: 20},
     img: "img/ships/Protogon.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -308,6 +324,8 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 17},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Shadow.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -327,6 +345,8 @@ const HULLS_DATA = [
     pivot: {x: 14, y: 16},
     engine_mount: {x: 14, y: 26},
     img: "img/ships/Shuttle.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -341,6 +361,8 @@ const HULLS_DATA = [
     pivot: {x: 15, y: 14},
     engine_mount: {x: 15, y: 23},
     img: "img/ships/Skate.png",
+    hullRadius: 6,
+    shieldRadius: 20,
     hardpoints: [
       {
         size: 0,
@@ -559,10 +581,13 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     timeToTurnAround,
     distanceRequiredToStop,
     stoppingDistance,
-    shield: 100,
-    maxShield: 100,
-    armor: 100,
-    maxArmor: 100,
+    shield: 10,
+    maxShield: 10,
+    hullHealth: 10,
+    maxHullHealth: 10,
+    armor: 10,
+    maxArmor: 10,
+    shieldHitTimer: 0,
     energy: 100,
     maxEnergy: 100,
     jumpFuel: 3,
@@ -682,8 +707,10 @@ const stars = [];
 const projectiles = [];
 
 function checkSpeed(vx, vy, speedLimit) {
-  const SPEED = Math.sqrt(vx * vx + vy * vy);
-  if (SPEED > speedLimit && SPEED > 0) {
+  const speedSq = vx * vx + vy * vy;
+  const limitSq = speedLimit * speedLimit;
+  if (speedSq > limitSq && speedSq > 0) {
+    const SPEED = Math.sqrt(speedSq);
     const ratio = speedLimit / SPEED;
     return { vx: vx * ratio, vy: vy * ratio };
   }
@@ -760,6 +787,7 @@ function spawnProjectile(ship, weaponSlot) {
     shipId: ship.data.id,
     originTime: performance.now(),
     lifetime: projData.lifetime,
+    damage: projData.damage !== undefined ? projData.damage : 1,
   });
 }
 
@@ -850,28 +878,38 @@ function setup() {
     const data = playerShip.data;
     const currentFuel = Math.max(0, Math.round(data.jumpFuel != null ? data.jumpFuel : 3));
     const maxFuel = Math.max(1, Math.round(data.maxJumpFuel != null ? data.maxJumpFuel : 3));
-    const shield = Math.max(0, Math.min(100, Math.round(data.shield != null ? data.shield : 100)));
-    const armor = Math.max(0, Math.min(100, Math.round(data.armor != null ? data.armor : 100)));
-    const energy = Math.max(0, Math.min(100, Math.round(data.energy != null ? data.energy : 100)));
+
+    const maxShield = Math.max(1, Math.round(data.maxShield != null ? data.maxShield : 10));
+    const currentShield = Math.max(0, Math.min(maxShield, data.shield != null ? data.shield : maxShield));
+    const shieldPct = Math.max(0, Math.min(100, (currentShield / maxShield) * 100));
+
+    const maxArmor = Math.max(1, Math.round(data.maxHullHealth != null ? data.maxHullHealth : (data.maxArmor != null ? data.maxArmor : 10)));
+    const currentArmor = Math.max(0, Math.min(maxArmor, data.hullHealth != null ? data.hullHealth : (data.armor != null ? data.armor : maxArmor)));
+    const armorPct = Math.max(0, Math.min(100, (currentArmor / maxArmor) * 100));
+
+    const maxEnergy = Math.max(1, Math.round(data.maxEnergy != null ? data.maxEnergy : 100));
+    const currentEnergy = Math.max(0, Math.min(maxEnergy, data.energy != null ? data.energy : 100));
+    const energyPct = Math.max(0, Math.min(100, (currentEnergy / maxEnergy) * 100));
+
     const hullName = data.hull ? data.hull.name : '';
     const engineName = data.engine ? data.engine.name : '';
     const maxSpeed = Math.round(data.maxSpeed || 0);
 
-    const statusKey = `${shield}_${armor}_${energy}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}`;
+    const statusKey = `${Math.ceil(currentShield)}_${shieldPct.toFixed(1)}_${Math.ceil(currentArmor)}_${armorPct.toFixed(1)}_${Math.round(currentEnergy)}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}`;
     if (statusKey === prevStatusKey) return;
     prevStatusKey = statusKey;
 
     // Shield
-    if (shieldVal) shieldVal.textContent = `${shield}%`;
-    if (shieldBar) shieldBar.style.width = `${shield}%`;
+    if (shieldVal) shieldVal.textContent = `${Math.ceil(currentShield)} / ${maxShield}`;
+    if (shieldBar) shieldBar.style.width = `${shieldPct}%`;
 
     // Armor
-    if (armorVal) armorVal.textContent = `${armor}%`;
-    if (armorBar) armorBar.style.width = `${armor}%`;
+    if (armorVal) armorVal.textContent = `${Math.ceil(currentArmor)} / ${maxArmor}`;
+    if (armorBar) armorBar.style.width = `${armorPct}%`;
 
     // Energy
-    if (energyVal) energyVal.textContent = `${energy}%`;
-    if (energyBar) energyBar.style.width = `${energy}%`;
+    if (energyVal) energyVal.textContent = `${Math.round(currentEnergy)}%`;
+    if (energyBar) energyBar.style.width = `${energyPct}%`;
 
     // Jump Fuel (Segmented)
     if (fuelVal) fuelVal.textContent = `${currentFuel} / ${maxFuel}`;
@@ -921,9 +959,43 @@ function setup() {
 
   const ships = [];
 
+  // Shield impact bubble graphics in the main view
+  const shieldGraphics = new PIXI.Graphics();
+  app.stage.addChild(shieldGraphics);
+
   // Tactical targeting bracket graphics in the main view
   const targetBracketGraphics = new PIXI.Graphics();
   app.stage.addChild(targetBracketGraphics);
+
+  function regenerateShields(dtSec) {
+    const allShips = [playerShip, derelictShip, ...ships];
+    for (let i = 0; i < allShips.length; i++) {
+      const s = allShips[i];
+      if (!s || !s.data) continue;
+      const maxS = s.data.maxShield || 10;
+      if (s.data.shield < maxS) {
+        s.data.shield = Math.min(maxS, s.data.shield + dtSec * 1.0);
+      }
+    }
+  }
+
+  function updateShieldEffects(dtSec) {
+    if (!shieldGraphics) return;
+    shieldGraphics.clear();
+    const allShips = [playerShip, derelictShip, ...ships];
+    for (let i = 0; i < allShips.length; i++) {
+      const s = allShips[i];
+      if (!s || !s.sprite || !s.data) continue;
+      if (s.data.shieldHitTimer > 0) {
+        s.data.shieldHitTimer = Math.max(0, s.data.shieldHitTimer - dtSec);
+        const alpha = Math.min(1, s.data.shieldHitTimer / 0.25);
+        const r = (s.data.hull && s.data.hull.shieldRadius) ? s.data.hull.shieldRadius : 20;
+        shieldGraphics.circle(s.sprite.x, s.sprite.y, r);
+        shieldGraphics.fill({ color: 0x38bdf8, alpha: 0.22 * alpha });
+        shieldGraphics.stroke({ width: 2, color: 0x38bdf8, alpha: 0.85 * alpha });
+      }
+    }
+  }
 
   function updateShipCount() {
     if (shipCountDisplay) {
@@ -939,7 +1011,8 @@ function setup() {
       ships.push(npc);
       app.stage.addChild(npc.sprite);
     }
-    // Keep targeting bracket HUD overlay on top of all ships
+    // Keep shield bubbles and targeting bracket HUD overlay on top of all ships
+    app.stage.addChild(shieldGraphics);
     app.stage.addChild(targetBracketGraphics);
     // Form the fleet: assign each ship a position in the hexagonal grid based on arbitrary ordering
     formFleet(playerShip, ships);
@@ -1473,6 +1546,19 @@ function setup() {
         }
       }
 
+      // Draw shield impact circle on target monitor if active
+      if (targetShip.data.shieldHitTimer > 0) {
+        const alpha = Math.min(1, targetShip.data.shieldHitTimer / 0.25);
+        const r = (hull && hull.shieldRadius) ? hull.shieldRadius : 20;
+        targetCtx.beginPath();
+        targetCtx.arc(0, 0, r, 0, Math.PI * 2);
+        targetCtx.fillStyle = `rgba(56, 189, 248, ${0.25 * alpha})`;
+        targetCtx.strokeStyle = `rgba(56, 189, 248, ${0.85 * alpha})`;
+        targetCtx.lineWidth = 2 / zoom;
+        targetCtx.fill();
+        targetCtx.stroke();
+      }
+
       targetCtx.restore();
     }
 
@@ -1622,7 +1708,15 @@ function setup() {
     }
 
     // Update active projectiles
+    const dtSec = delta / 60;
+
+    // Regenerate shields for all active ships at 1 point per second (hulls do not regenerate)
+    regenerateShields(dtSec);
+
+    // Update active projectiles and check collisions against active ships
     const now = performance.now();
+    const allShips = [playerShip, derelictShip, ...ships];
+
     for (let i = projectiles.length - 1; i >= 0; i--) {
       const proj = projectiles[i];
       if ((now - proj.originTime) / 1000 >= proj.lifetime) {
@@ -1635,7 +1729,50 @@ function setup() {
       proj.sprite.x += (proj.vx - playerShip.data.vx) * delta * (60 / 1000);
       proj.sprite.y += (proj.vy - playerShip.data.vy) * delta * (60 / 1000);
       proj.sprite.rotation += (proj.rotation || proj.rotationSpeed || 0) * delta;
+
+      // Hitbox collision check against active ships using distance squared formula
+      let hit = false;
+      for (let sIdx = 0; sIdx < allShips.length; sIdx++) {
+        const targetShip = allShips[sIdx];
+        if (!targetShip || !targetShip.sprite || !targetShip.data) continue;
+        if (targetShip.data.id === proj.shipId) continue; // Do not hit firing ship
+
+        const pdx = proj.sprite.x - targetShip.sprite.x;
+        const pdy = proj.sprite.y - targetShip.sprite.y;
+        const distSq = pdx * pdx + pdy * pdy;
+
+        const shieldRadius = (targetShip.data.hull && targetShip.data.hull.shieldRadius) ? targetShip.data.hull.shieldRadius : 20;
+        const hullRadius = (targetShip.data.hull && targetShip.data.hull.hullRadius) ? targetShip.data.hull.hullRadius : 6;
+        const hasShield = targetShip.data.shield > 0;
+
+        if (hasShield) {
+          if (distSq <= shieldRadius * shieldRadius) {
+            // Collision with outer shield hitbox: absorb damage and trigger shield circle
+            targetShip.data.shield = Math.max(0, targetShip.data.shield - proj.damage);
+            targetShip.data.shieldHitTimer = 0.25;
+            hit = true;
+            break;
+          }
+        } else {
+          if (distSq <= hullRadius * hullRadius) {
+            // Collision with inner hull hitbox: shields are down, absorb damage into hull
+            targetShip.data.hullHealth = Math.max(0, targetShip.data.hullHealth - proj.damage);
+            targetShip.data.armor = targetShip.data.hullHealth;
+            hit = true;
+            break;
+          }
+        }
+      }
+
+      if (hit) {
+        app.stage.removeChild(proj.sprite);
+        proj.sprite.destroy();
+        projectiles.splice(i, 1);
+      }
     }
+
+    // Render active shield hit circles
+    updateShieldEffects(dtSec);
 
     for (let i = 0; i < ships.length; i++) {
       const ship = ships[i];
@@ -1650,16 +1787,19 @@ function setup() {
       // Distance and vector from ship to its assigned formation position
       const dx = targetX - shipSprite.x;
       const dy = targetY - shipSprite.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const distSq = dx * dx + dy * dy;
 
       // Relative velocity: v_npc - v_player
       const relVx = shipData.vx - playerShip.data.vx;
       const relVy = shipData.vy - playerShip.data.vy;
-      const relSpeed = Math.sqrt(relVx * relVx + relVy * relVy);
+      const relSpeedSq = relVx * relVx + relVy * relVy;
+      const relSpeed = Math.sqrt(relSpeedSq);
 
       const dt = delta * (60 / 1000);
       const dvMax = shipData.accel * dt;
       const matchTolerance = Math.max(1.5, dvMax * 0.8);
+      const matchToleranceSq = matchTolerance * matchTolerance;
+      const formationRelSpeedTolSq = (matchTolerance * 2.5) * (matchTolerance * 2.5);
 
       // Stopping distance based on total relative speed and turn time to eliminate drift
       const targetForceAngle = Math.PI / 2 + Math.atan2(-relVy, -relVx);
@@ -1673,31 +1813,36 @@ function setup() {
       const stopDist = (relSpeed * relSpeed) / (2 * shipData.accel);
       const currentStopDist = turnDist + stopDist;
       const brakeThreshold = Math.max(18, currentStopDist * 1.05 + 5);
+      const brakeThresholdSq = brakeThreshold * brakeThreshold;
+      const formationDistSq = 30 * 30; // 900
+      const brakeExitThreshold = brakeThreshold * 1.3 + 10;
+      const brakeExitThresholdSq = brakeExitThreshold * brakeExitThreshold;
 
-      // Behavior state transitions
+      // Behavior state transitions using distance squared comparisons to avoid square roots
       if (!shipData.aiState) {
-        shipData.aiState = dist > brakeThreshold ? 'APPROACH' : 'FORMATION';
+        shipData.aiState = distSq > brakeThresholdSq ? 'APPROACH' : 'FORMATION';
       }
 
       if (shipData.aiState === 'APPROACH') {
-        if (dist <= brakeThreshold) {
+        if (distSq <= brakeThresholdSq) {
           shipData.aiState = 'BRAKE';
         }
       } else if (shipData.aiState === 'BRAKE') {
-        if (relSpeed <= matchTolerance) {
-          shipData.aiState = dist <= 30 ? 'FORMATION' : 'APPROACH';
-        } else if (dist > brakeThreshold * 1.3 + 10) {
+        if (relSpeedSq <= matchToleranceSq) {
+          shipData.aiState = distSq <= formationDistSq ? 'FORMATION' : 'APPROACH';
+        } else if (distSq > brakeExitThresholdSq) {
           shipData.aiState = 'APPROACH';
         }
       } else if (shipData.aiState === 'FORMATION') {
         // Fall out of formation if displaced from station or relative speed becomes significant
-        if (dist > 30 || relSpeed > matchTolerance * 2.5) {
+        if (distSq > formationDistSq || relSpeedSq > formationRelSpeedTolSq) {
           shipData.aiState = 'APPROACH';
         }
       }
 
       // Execute current behavior
       if (shipData.aiState === 'APPROACH') {
+        const dist = Math.sqrt(distSq);
         // Safe approach speed scales down with distance and respects maximum turn rate
         // to prevent overrunning the ship's ability to steer toward the destination.
         const turnLimitedSpeed = Math.max(25, dist * (TURN_RATE / dt) * 0.5);
