@@ -862,6 +862,9 @@ function spawnProjectile(ship, weaponSlot) {
       rotation: spinSpeed,
       rotationSpeed: spinSpeed,
       shipId: ship.data.id,
+      parentShip: ship,
+      ship: ship,
+      parent: ship,
       originTime: performance.now(),
       lifetime: projData.lifetime,
       damage: projData.damage !== undefined ? projData.damage : 1,
@@ -902,6 +905,9 @@ function spawnProjectile(ship, weaponSlot) {
       rotation: spinSpeed,
       rotationSpeed: spinSpeed,
       shipId: ship.data.id,
+      parentShip: ship,
+      ship: ship,
+      parent: ship,
       originTime: performance.now(),
       lifetime: projData.lifetime,
       damage: projData.damage !== undefined ? projData.damage : 1,
@@ -1585,7 +1591,7 @@ function setup() {
 
     // Acquire or re-validate hostile target
     let target = shipData.combatTarget;
-    if (!target || !target.sprite || !target.data || target.data.isDestroyed || (target.data.paint && shipData.paint && target.data.paint.name === shipData.paint.name)) {
+    if (!target || !target.sprite || !target.data || target.data.isDestroyed || (target.data.paint && shipData.paint && target.data.paint.name === shipData.paint.name && target !== shipData.lastAttacker)) {
       target = findNearestHostile(ship, allCombatants);
       shipData.combatTarget = target;
     }
@@ -2050,6 +2056,27 @@ function setup() {
   }
   onSelectNearestHostile = selectNearestHostile;
 
+  // When a ship is hit by a projectile, switch its target to the projectile's parent as the most immediate threat
+  function handleShipHit(targetShip, proj, allShips) {
+    if (!targetShip || !targetShip.data || targetShip.data.isDestroyed) return;
+    const parentShip = proj.parentShip || proj.ship || proj.parent || (allShips && allShips.find((s) => s && s.data && s.data.id === proj.shipId));
+    if (!parentShip || parentShip === targetShip || !parentShip.data || parentShip.data.isDestroyed) return;
+
+    if (targetShip === playerShip) {
+      currentTargetId = parentShip.data.id;
+      playerShip.data.combatTarget = parentShip;
+    } else if (!targetShip.data.isDerelict && !targetShip.data.isDisabled) {
+      targetShip.data.combatTarget = parentShip;
+      targetShip.data.lastAttacker = parentShip;
+      if (isFighting && !targetShip.data.combatStrategy) {
+        targetShip.data.combatStrategy = getRandomCombatStrategy();
+      }
+      if (isFighting && targetShip.data.aiState !== 'RETREAT') {
+        targetShip.data.aiState = 'COMBAT';
+      }
+    }
+  }
+
   // Main screen click targeting: selects closest targetable ship to clicked stage coordinates
   function selectClosestShipToStagePoint(clickX, clickY) {
     const candidateShips = getTargetableShips();
@@ -2197,6 +2224,12 @@ function setup() {
     window.updateNpcCombat = updateNpcCombat;
     window.getStrategyDisplayName = getStrategyDisplayName;
     window.getRandomCombatStrategy = getRandomCombatStrategy;
+    window.handleShipHit = handleShipHit;
+    Object.defineProperty(window, 'currentTargetId', {
+      get: () => currentTargetId,
+      set: (val) => { currentTargetId = val; },
+      configurable: true,
+    });
     Object.defineProperty(window, 'isFighting', {
       get: () => isFighting,
       set: (val) => { isFighting = !!val; },
@@ -2813,6 +2846,7 @@ function setup() {
         if (targetShip === playerShip && isGodMode) {
           if (distSq <= shieldRadius * shieldRadius) {
             targetShip.data.shieldHitTimer = 0.25;
+            handleShipHit(targetShip, proj, allShips);
             hit = true;
             break;
           }
@@ -2823,6 +2857,7 @@ function setup() {
           if (distSq <= shieldRadius * shieldRadius) {
             // Collision with outer shield hitbox: trigger shield impact visual effect
             targetShip.data.shieldHitTimer = 0.25;
+            handleShipHit(targetShip, proj, allShips);
 
             if (proj.damage <= targetShip.data.shield) {
               // Shield fully absorbs the projectile damage
@@ -2862,6 +2897,7 @@ function setup() {
         } else {
           if (distSq <= hullRadius * hullRadius) {
             // Collision with inner hull hitbox: shields are down, absorb damage into hull
+            handleShipHit(targetShip, proj, allShips);
             targetShip.data.hullHealth = Math.max(0, targetShip.data.hullHealth - proj.damage);
             targetShip.data.armor = targetShip.data.hullHealth;
             targetShip.data.shieldDownDelay = 1.0;
