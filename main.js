@@ -7,6 +7,7 @@ const spawnBtn = document.getElementById("spawn-btn");
 const spawnTenBtn = document.getElementById("spawn-ten-btn");
 const fightBtn = document.getElementById("fight-btn");
 const godModeBtn = document.getElementById("god-mode-btn");
+const hitboxBtn = document.getElementById("hitbox-btn");
 const bodySelect = document.getElementById("body-select");
 const engineSelect = document.getElementById("engine-select");
 const paintSelect = document.getElementById("paint-select");
@@ -50,6 +51,8 @@ const PIXELS_PER_METER = 1;
 const TURN_RATE = 0.04; // rad/frame
 const ACCEL_LIMIT = 5; // seconds
 const FORMATION_DISTANCE = 100; // px
+const DISABLED_ARMOR_THRESHOLD = 0.2; // 20% armor threshold for disabling ships
+let showHitboxes = false;
 
 // Radar exponential display constants and mapping function
 // Maps distances 0..4000m continuously using an exponential/logarithmic curve.
@@ -1173,6 +1176,10 @@ function setup() {
   const targetBracketGraphics = new PIXI.Graphics();
   app.stage.addChild(targetBracketGraphics);
 
+  // Hull hitbox overlay graphics in the main view
+  const hitboxGraphics = new PIXI.Graphics();
+  app.stage.addChild(hitboxGraphics);
+
   function regenerateShields(dtSec) {
     const allShips = [playerShip, derelictShip, ...ships];
     for (let i = 0; i < allShips.length; i++) {
@@ -1213,6 +1220,29 @@ function setup() {
         shieldGraphics.fill({ color: 0x38bdf8, alpha: 0.22 * alpha });
         shieldGraphics.stroke({ width: 2, color: 0x38bdf8, alpha: 0.85 * alpha });
       }
+    }
+  }
+
+  function updateHitboxGraphics() {
+    if (!hitboxGraphics) return;
+    hitboxGraphics.clear();
+    if (!showHitboxes) return;
+
+    const allShips = [playerShip, derelictShip, ...ships];
+    for (let i = 0; i < allShips.length; i++) {
+      const s = allShips[i];
+      if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
+
+      const r = (s.data.hull && s.data.hull.hullRadius) ? s.data.hull.hullRadius : 6;
+
+      // Offscreen culling: skip drawing if outside viewport
+      if (s.sprite.x + r < 0 || s.sprite.x - r > GAME_WIDTH || s.sprite.y + r < 0 || s.sprite.y - r > GAME_HEIGHT) {
+        continue;
+      }
+
+      hitboxGraphics.circle(s.sprite.x, s.sprite.y, r);
+      hitboxGraphics.fill({ color: 0xef4444, alpha: 0.3 });
+      hitboxGraphics.stroke({ width: 1.5, color: 0xef4444, alpha: 0.9 });
     }
   }
 
@@ -1279,6 +1309,9 @@ function setup() {
     }
     app.stage.addChild(shieldGraphics);
     app.stage.addChild(targetBracketGraphics);
+    if (hitboxGraphics) {
+      app.stage.addChild(hitboxGraphics);
+    }
     // Form the fleet if not in combat mode
     if (!isFighting) {
       formFleet(playerShip, ships);
@@ -1372,6 +1405,22 @@ function setup() {
         godModeBtn.classList.remove('active');
         updatePlayerStatusUI();
       }
+      event.target.blur();
+    });
+  }
+
+  if (hitboxBtn) {
+    hitboxBtn.addEventListener('click', (event) => {
+      showHitboxes = !showHitboxes;
+      if (typeof window !== 'undefined') window.showHitboxes = showHitboxes;
+      if (showHitboxes) {
+        hitboxBtn.textContent = 'Hitboxes: ON';
+        hitboxBtn.classList.add('active');
+      } else {
+        hitboxBtn.textContent = 'Hitboxes: OFF';
+        hitboxBtn.classList.remove('active');
+      }
+      updateHitboxGraphics();
       event.target.blur();
     });
   }
@@ -1505,7 +1554,7 @@ function setup() {
     const shipSprite = ship.sprite;
 
     const maxA = shipData.maxHullHealth || shipData.maxArmor || 10;
-    if (shipData.hullHealth <= maxA * 0.1) {
+    if (shipData.hullHealth <= maxA * DISABLED_ARMOR_THRESHOLD) {
       shipData.isDisabled = true;
       shipData.aiState = 'DISABLED';
     }
@@ -2240,6 +2289,21 @@ function setup() {
       set: (val) => { isGodMode = !!val; },
       configurable: true,
     });
+    Object.defineProperty(window, 'showHitboxes', {
+      get: () => showHitboxes,
+      set: (val) => {
+        showHitboxes = !!val;
+        if (hitboxBtn) {
+          hitboxBtn.textContent = `Hitboxes: ${showHitboxes ? 'ON' : 'OFF'}`;
+          hitboxBtn.classList.toggle('active', showHitboxes);
+        }
+        updateHitboxGraphics();
+      },
+      configurable: true,
+    });
+    window.hitboxGraphics = hitboxGraphics;
+    window.updateHitboxGraphics = updateHitboxGraphics;
+    window.DISABLED_ARMOR_THRESHOLD = DISABLED_ARMOR_THRESHOLD;
     window.playerShip = playerShip;
     window.spawnNpcShips = spawnNpcShips;
     window.ships = ships;
@@ -2586,6 +2650,18 @@ function setup() {
         targetCtx.stroke();
       }
 
+      // Draw hull hitbox circle on target monitor if active
+      if (showHitboxes) {
+        const hr = (hull && hull.hullRadius) ? hull.hullRadius : 6;
+        targetCtx.beginPath();
+        targetCtx.arc(0, 0, hr, 0, Math.PI * 2);
+        targetCtx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+        targetCtx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
+        targetCtx.lineWidth = 1.5 / zoom;
+        targetCtx.fill();
+        targetCtx.stroke();
+      }
+
       targetCtx.restore();
     }
 
@@ -2748,7 +2824,7 @@ function setup() {
       playerShip.data.armor = playerShip.data.maxArmor || 10;
     } else {
       const playerMaxArmor = playerShip.data.maxHullHealth || playerShip.data.maxArmor || 10;
-      if (playerShip.data.hullHealth <= playerMaxArmor * 0.1 && !playerShip.data.isDestroyed) {
+      if (playerShip.data.hullHealth <= playerMaxArmor * DISABLED_ARMOR_THRESHOLD && !playerShip.data.isDestroyed) {
         playerShip.data.isDisabled = true;
         playerShip.data.aiState = 'DISABLED';
       }
@@ -2882,7 +2958,7 @@ function setup() {
                 const maxA = targetShip.data.maxHullHealth || targetShip.data.maxArmor || 10;
                 if (targetShip.data.hullHealth <= 0) {
                   destroyShip(targetShip);
-                } else if (targetShip.data.hullHealth <= maxA * 0.1) {
+                } else if (targetShip.data.hullHealth <= maxA * DISABLED_ARMOR_THRESHOLD) {
                   targetShip.data.isDisabled = true;
                   targetShip.data.aiState = 'DISABLED';
                 }
@@ -2904,7 +2980,7 @@ function setup() {
             const maxA = targetShip.data.maxHullHealth || targetShip.data.maxArmor || 10;
             if (targetShip.data.hullHealth <= 0) {
               destroyShip(targetShip);
-            } else if (targetShip.data.hullHealth <= maxA * 0.1) {
+            } else if (targetShip.data.hullHealth <= maxA * DISABLED_ARMOR_THRESHOLD) {
               targetShip.data.isDisabled = true;
               targetShip.data.aiState = 'DISABLED';
             }
@@ -2922,6 +2998,8 @@ function setup() {
 
     // Render active shield hit circles
     updateShieldEffects(dtSec);
+    // Render hull hitboxes if enabled
+    updateHitboxGraphics();
 
     for (let i = ships.length - 1; i >= 0; i--) {
       const ship = ships[i];
@@ -2929,9 +3007,9 @@ function setup() {
       const shipSprite = ship.sprite;
       const shipData = ship.data;
 
-      // Check if ship is disabled (armor <= 10%)
+      // Check if ship is disabled (armor <= 20%)
       const maxA = shipData.maxHullHealth || shipData.maxArmor || 10;
-      if (shipData.hullHealth <= maxA * 0.1) {
+      if (shipData.hullHealth <= maxA * DISABLED_ARMOR_THRESHOLD) {
         shipData.isDisabled = true;
         shipData.aiState = 'DISABLED';
       }
@@ -3169,7 +3247,7 @@ function setup() {
     // Derelict ship does not join in the fight but remains motionless in space
     if (derelictShip && !derelictShip.data.isDestroyed) {
       const dMaxA = derelictShip.data.maxHullHealth || derelictShip.data.maxArmor || 10;
-      if (derelictShip.data.hullHealth <= dMaxA * 0.1) {
+      if (derelictShip.data.hullHealth <= dMaxA * DISABLED_ARMOR_THRESHOLD) {
         derelictShip.data.isDisabled = true;
         derelictShip.data.aiState = 'DISABLED';
       }

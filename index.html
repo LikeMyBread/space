@@ -508,6 +508,23 @@
       color: #ffffff;
     }
 
+    .btn-hitbox {
+      background: #450a0a;
+      border-color: #ef4444;
+    }
+
+    .btn-hitbox:hover {
+      background: #7f1d1d;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-hitbox.active {
+      background: #b91c1c;
+      border-color: #f87171;
+      box-shadow: 0 0 16px rgba(248, 113, 113, 0.6);
+      color: #ffffff;
+    }
+
     .stats-group {
       display: flex;
       gap: 12px;
@@ -746,6 +763,7 @@
         <button id="reform-btn" class="btn" type="button">Re-form Fleet</button>
         <button id="fight-btn" class="btn btn-fight" type="button">Fight!</button>
         <button id="god-mode-btn" class="btn btn-god" type="button">God Mode: OFF</button>
+        <button id="hitbox-btn" class="btn btn-hitbox" type="button">Hitboxes: OFF</button>
       </div>
 
       <div class="stats-group">
