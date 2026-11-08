@@ -20,6 +20,10 @@ const targetHullVal = document.getElementById("target-hull-val");
 const targetFactionVal = document.getElementById("target-faction-val");
 const targetDistVal = document.getElementById("target-dist-val");
 const targetStateVal = document.getElementById("target-state-val");
+const targetShieldVal = document.getElementById("target-shield-val");
+const targetShieldBar = document.getElementById("target-shield-bar");
+const targetArmorVal = document.getElementById("target-armor-val");
+const targetArmorBar = document.getElementById("target-armor-bar");
 
 const shieldVal = document.getElementById("shield-val");
 const shieldBar = document.getElementById("shield-bar");
@@ -1480,6 +1484,10 @@ function setup() {
       if (targetFactionVal) targetFactionVal.textContent = '--';
       if (targetDistVal) targetDistVal.textContent = '--';
       if (targetStateVal) targetStateVal.textContent = '--';
+      if (targetShieldVal) targetShieldVal.textContent = '--';
+      if (targetShieldBar) targetShieldBar.style.width = '0%';
+      if (targetArmorVal) targetArmorVal.textContent = '--';
+      if (targetArmorBar) targetArmorBar.style.width = '0%';
       return;
     }
 
@@ -1574,10 +1582,21 @@ function setup() {
       targetCtx.fillText('FEED: DIRECT [OPTICAL]', 12, 17);
     }
 
-    // Lock status
+    const maxTargetShield = Math.max(1, Math.round(targetShip.data.maxShield != null ? targetShip.data.maxShield : 10));
+    const currentTargetShield = Math.max(0, Math.min(maxTargetShield, targetShip.data.shield != null ? targetShip.data.shield : maxTargetShield));
+    const targetShieldPct = Math.max(0, Math.min(100, (currentTargetShield / maxTargetShield) * 100));
+
+    const maxTargetArmor = Math.max(1, Math.round(targetShip.data.maxHullHealth != null ? targetShip.data.maxHullHealth : (targetShip.data.maxArmor != null ? targetShip.data.maxArmor : 10)));
+    const currentTargetArmor = Math.max(0, Math.min(maxTargetArmor, targetShip.data.hullHealth != null ? targetShip.data.hullHealth : (targetShip.data.armor != null ? targetShip.data.armor : maxTargetArmor)));
+    const targetArmorPct = Math.max(0, Math.min(100, (currentTargetArmor / maxTargetArmor) * 100));
+
+    // Lock status & Target Vitals on OSD
     targetCtx.fillStyle = '#38bdf8';
     targetCtx.textAlign = 'right';
     targetCtx.fillText('TRK: LOCK', width - 12, 17);
+    targetCtx.fillText(`SHD: ${Math.ceil(currentTargetShield)}/${maxTargetShield}`, width - 12, 29);
+    targetCtx.fillStyle = '#fbbf24';
+    targetCtx.fillText(`ARM: ${Math.ceil(currentTargetArmor)}/${maxTargetArmor}`, width - 12, 41);
     targetCtx.textAlign = 'start';
 
     // Range & Bearing
@@ -1605,6 +1624,18 @@ function setup() {
     }
     if (targetStateVal) {
       targetStateVal.textContent = targetShip.data.aiState || (targetShip.data.isDerelict ? 'DERELICT' : 'IDLE');
+    }
+    if (targetShieldVal) {
+      targetShieldVal.textContent = `${Math.ceil(currentTargetShield)} / ${maxTargetShield}`;
+    }
+    if (targetShieldBar) {
+      targetShieldBar.style.width = `${targetShieldPct}%`;
+    }
+    if (targetArmorVal) {
+      targetArmorVal.textContent = `${Math.ceil(currentTargetArmor)} / ${maxTargetArmor}`;
+    }
+    if (targetArmorBar) {
+      targetArmorBar.style.width = `${targetArmorPct}%`;
     }
   }
 

@@ -289,6 +289,19 @@
       box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
     }
 
+    .target-gauges {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 2px;
+      box-sizing: border-box;
+    }
+
+    .target-gauge-track {
+      height: 8px;
+    }
+
     .target-info {
       width: 100%;
       display: grid;
@@ -583,6 +596,30 @@
           <button id="target-id-badge" class="target-badge" type="button" title="Press Tab or click to cycle target">ID #2</button>
         </div>
         <canvas id="target-canvas" width="220" height="170"></canvas>
+
+        <!-- Target Vital Gauges -->
+        <div class="target-gauges">
+          <div class="status-gauge">
+            <div class="gauge-header">
+              <span class="gauge-label shield-label">SHIELD</span>
+              <span id="target-shield-val" class="gauge-val shield-val">10 / 10</span>
+            </div>
+            <div class="gauge-track target-gauge-track">
+              <div id="target-shield-bar" class="gauge-fill shield-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+
+          <div class="status-gauge">
+            <div class="gauge-header">
+              <span class="gauge-label armor-label">ARMOR</span>
+              <span id="target-armor-val" class="gauge-val armor-val">10 / 10</span>
+            </div>
+            <div class="gauge-track target-gauge-track">
+              <div id="target-armor-bar" class="gauge-fill armor-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="target-info">
           <div class="target-info-row">
             <span class="target-label">HULL:</span>
