@@ -15,11 +15,165 @@
       align-items: center;
     }
 
+    #view-layout {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 16px;
+      max-width: 100%;
+    }
+
     #game-container {
       width: 1000px;
       max-width: 100%;
       display: flex;
       justify-content: center;
+    }
+
+    #sidebar-panel {
+      width: 244px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #radar-panel, #target-panel {
+      width: 100%;
+      background: #091220;
+      border: 1px solid #1a2942;
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    }
+
+    .radar-header, .target-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .radar-title, .target-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+    }
+
+    .radar-mode-badge {
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: #38bdf8;
+      background: #0d1829;
+      border: 1px solid #1f293d;
+      border-radius: 4px;
+      padding: 3px 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .target-badge {
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: #38bdf8;
+      background: #0d1829;
+      border: 1px solid #1f293d;
+      border-radius: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .target-badge:hover {
+      background: #152238;
+      border-color: #38bdf8;
+    }
+
+    #radar-canvas {
+      display: block;
+      width: 220px;
+      height: 200px;
+      background: #030814;
+      border: 1px solid #1a2942;
+      border-radius: 6px;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+    }
+
+    #target-canvas {
+      display: block;
+      width: 220px;
+      height: 170px;
+      background: #030814;
+      border: 1px solid #1a2942;
+      border-radius: 6px;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+    }
+
+    .target-info {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      padding: 0 2px;
+      box-sizing: border-box;
+    }
+
+    .target-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0d1829;
+      border: 1px solid #1f293d;
+      border-radius: 4px;
+      padding: 3px 6px;
+    }
+
+    .target-label {
+      color: #64748b;
+      font-weight: 600;
+      font-size: 10px;
+    }
+
+    .target-val {
+      color: #e2e8f0;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+      max-width: 60px;
+    }
+
+    .radar-legend {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #94a3b8;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      padding: 0 2px;
+      box-sizing: border-box;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
     }
 
     canvas {
@@ -33,7 +187,7 @@
       flex-direction: column;
       gap: 12px;
       margin-top: 14px;
-      width: 1000px;
+      width: 1260px;
       max-width: 100%;
       background: #091220;
       border: 1px solid #1a2942;
@@ -156,7 +310,50 @@
   </style>
 </head>
 <body>
-  <div id="game-container"></div>
+  <div id="view-layout">
+    <div id="game-container"></div>
+
+    <div id="sidebar-panel">
+      <div id="radar-panel">
+        <div class="radar-header">
+          <span class="radar-title">RADAR</span>
+          <span class="radar-mode-badge">EXP 4,000m</span>
+        </div>
+        <canvas id="radar-canvas" width="220" height="200"></canvas>
+        <div class="radar-legend">
+          <span class="legend-item"><span class="legend-dot" id="player-legend-dot" style="background:#d42121;"></span> Player</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#216cd4;"></span> Fleet</span>
+          <span class="legend-item"><span class="legend-dot" id="derelict-legend-dot" style="background:#d4a321;"></span> Derelict</span>
+        </div>
+      </div>
+
+      <div id="target-panel">
+        <div class="target-header">
+          <span class="target-title">TARGET MONITOR</span>
+          <button id="target-id-badge" class="target-badge" type="button" title="Press Tab or click to cycle target">ID #2</button>
+        </div>
+        <canvas id="target-canvas" width="220" height="170"></canvas>
+        <div class="target-info">
+          <div class="target-info-row">
+            <span class="target-label">HULL:</span>
+            <span id="target-hull-val" class="target-val">Boat</span>
+          </div>
+          <div class="target-info-row">
+            <span class="target-label">AFFIL:</span>
+            <span id="target-faction-val" class="target-val">Solaris Guild</span>
+          </div>
+          <div class="target-info-row">
+            <span class="target-label">DIST:</span>
+            <span id="target-dist-val" class="target-val">297m</span>
+          </div>
+          <div class="target-info-row">
+            <span class="target-label">STATE:</span>
+            <span id="target-state-val" class="target-val">DERELICT</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="controls-panel">
     <!-- Ship Customization Controls -->
@@ -207,7 +404,9 @@
     <div class="controls-row">
       <div class="control-group">
         <span class="section-title">Simulation:</span>
+        <button id="spawn-ten-btn" class="btn" type="button">Spawn 10 Ships</button>
         <button id="spawn-btn" class="btn" type="button">Spawn 1,000 Ships</button>
+        <button id="reform-btn" class="btn" type="button">Re-form Fleet</button>
       </div>
 
       <div class="stats-group">
