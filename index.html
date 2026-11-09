@@ -525,6 +525,23 @@
       color: #ffffff;
     }
 
+    .btn-pivot {
+      background: #3b0764;
+      border-color: #c084fc;
+    }
+
+    .btn-pivot:hover {
+      background: #581c87;
+      box-shadow: 0 0 12px rgba(192, 132, 252, 0.4);
+    }
+
+    .btn-pivot.active {
+      background: #7e22ce;
+      border-color: #e9d5ff;
+      box-shadow: 0 0 16px rgba(192, 132, 252, 0.6);
+      color: #ffffff;
+    }
+
     .stats-group {
       display: flex;
       gap: 12px;
@@ -764,6 +781,7 @@
         <button id="fight-btn" class="btn btn-fight" type="button">Fight!</button>
         <button id="god-mode-btn" class="btn btn-god" type="button">God Mode: OFF</button>
         <button id="hitbox-btn" class="btn btn-hitbox" type="button">Hitboxes: OFF</button>
+        <button id="pivot-btn" class="btn btn-pivot" type="button">Pivots: OFF</button>
       </div>
 
       <div class="stats-group">

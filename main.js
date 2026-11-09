@@ -8,6 +8,7 @@ const spawnTenBtn = document.getElementById("spawn-ten-btn");
 const fightBtn = document.getElementById("fight-btn");
 const godModeBtn = document.getElementById("god-mode-btn");
 const hitboxBtn = document.getElementById("hitbox-btn");
+const pivotBtn = document.getElementById("pivot-btn");
 const bodySelect = document.getElementById("body-select");
 const engineSelect = document.getElementById("engine-select");
 const paintSelect = document.getElementById("paint-select");
@@ -53,6 +54,7 @@ const ACCEL_LIMIT = 5; // seconds
 const FORMATION_DISTANCE = 100; // px
 const DISABLED_ARMOR_THRESHOLD = 0.2; // 20% armor threshold for disabling ships
 let showHitboxes = false;
+let showPivots = false;
 
 // Radar exponential display constants and mapping function
 // Maps distances 0..4000m continuously using an exponential/logarithmic curve.
@@ -1180,6 +1182,10 @@ function setup() {
   const hitboxGraphics = new PIXI.Graphics();
   app.stage.addChild(hitboxGraphics);
 
+  // Ship pivot overlay graphics in the main view
+  const pivotGraphics = new PIXI.Graphics();
+  app.stage.addChild(pivotGraphics);
+
   function regenerateShields(dtSec) {
     const allShips = [playerShip, derelictShip, ...ships];
     for (let i = 0; i < allShips.length; i++) {
@@ -1243,6 +1249,37 @@ function setup() {
       hitboxGraphics.circle(s.sprite.x, s.sprite.y, r);
       hitboxGraphics.fill({ color: 0xef4444, alpha: 0.3 });
       hitboxGraphics.stroke({ width: 1.5, color: 0xef4444, alpha: 0.9 });
+    }
+  }
+
+  function updatePivotGraphics() {
+    if (!pivotGraphics) return;
+    pivotGraphics.clear();
+    if (!showPivots) return;
+
+    const allShips = [playerShip, derelictShip, ...ships];
+    for (let i = 0; i < allShips.length; i++) {
+      const s = allShips[i];
+      if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
+
+      const px = Math.round(s.sprite.x);
+      const py = Math.round(s.sprite.y);
+
+      // Offscreen culling: skip drawing if outside viewport
+      if (px < 0 || px > GAME_WIDTH || py < 0 || py > GAME_HEIGHT) {
+        continue;
+      }
+
+      if (typeof pivotGraphics.rect === 'function') {
+        pivotGraphics.rect(px, py, 1, 1);
+      } else if (typeof pivotGraphics.drawRect === 'function') {
+        pivotGraphics.drawRect(px, py, 1, 1);
+      } else {
+        pivotGraphics.circle(px, py, 0.5);
+      }
+      if (typeof pivotGraphics.fill === 'function') {
+        pivotGraphics.fill({ color: 0xc084fc, alpha: 1.0 });
+      }
     }
   }
 
@@ -1311,6 +1348,9 @@ function setup() {
     app.stage.addChild(targetBracketGraphics);
     if (hitboxGraphics) {
       app.stage.addChild(hitboxGraphics);
+    }
+    if (pivotGraphics) {
+      app.stage.addChild(pivotGraphics);
     }
     // Form the fleet if not in combat mode
     if (!isFighting) {
@@ -1421,6 +1461,22 @@ function setup() {
         hitboxBtn.classList.remove('active');
       }
       updateHitboxGraphics();
+      event.target.blur();
+    });
+  }
+
+  if (pivotBtn) {
+    pivotBtn.addEventListener('click', (event) => {
+      showPivots = !showPivots;
+      if (typeof window !== 'undefined') window.showPivots = showPivots;
+      if (showPivots) {
+        pivotBtn.textContent = 'Pivots: ON';
+        pivotBtn.classList.add('active');
+      } else {
+        pivotBtn.textContent = 'Pivots: OFF';
+        pivotBtn.classList.remove('active');
+      }
+      updatePivotGraphics();
       event.target.blur();
     });
   }
@@ -2303,6 +2359,20 @@ function setup() {
     });
     window.hitboxGraphics = hitboxGraphics;
     window.updateHitboxGraphics = updateHitboxGraphics;
+    Object.defineProperty(window, 'showPivots', {
+      get: () => showPivots,
+      set: (val) => {
+        showPivots = !!val;
+        if (pivotBtn) {
+          pivotBtn.textContent = `Pivots: ${showPivots ? 'ON' : 'OFF'}`;
+          pivotBtn.classList.toggle('active', showPivots);
+        }
+        updatePivotGraphics();
+      },
+      configurable: true,
+    });
+    window.pivotGraphics = pivotGraphics;
+    window.updatePivotGraphics = updatePivotGraphics;
     window.DISABLED_ARMOR_THRESHOLD = DISABLED_ARMOR_THRESHOLD;
     window.playerShip = playerShip;
     window.spawnNpcShips = spawnNpcShips;
@@ -2663,6 +2733,12 @@ function setup() {
       }
 
       targetCtx.restore();
+
+      // Draw pivot pixel on target monitor if active
+      if (showPivots) {
+        targetCtx.fillStyle = '#c084fc';
+        targetCtx.fillRect(Math.round(cx), Math.round(cy), 1, 1);
+      }
     }
 
     // 2. Tactical OSD overlay
@@ -3000,6 +3076,8 @@ function setup() {
     updateShieldEffects(dtSec);
     // Render hull hitboxes if enabled
     updateHitboxGraphics();
+    // Render ship pivots if enabled
+    updatePivotGraphics();
 
     for (let i = ships.length - 1; i >= 0; i--) {
       const ship = ships[i];
