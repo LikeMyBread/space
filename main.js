@@ -53,6 +53,8 @@ const TURN_RATE = 0.04; // rad/frame
 const ACCEL_LIMIT = 5; // seconds
 const FORMATION_DISTANCE = 100; // px
 const DISABLED_ARMOR_THRESHOLD = 0.2; // 20% armor threshold for disabling ships
+const PIVOT_SIZE = 3; // px - size of pivot highlight for high-res visibility
+const PIVOT_HALF = Math.floor(PIVOT_SIZE / 2);
 let showHitboxes = false;
 let showPivots = false;
 
@@ -1266,16 +1268,16 @@ function setup() {
       const py = Math.round(s.sprite.y);
 
       // Offscreen culling: skip drawing if outside viewport
-      if (px < 0 || px > GAME_WIDTH || py < 0 || py > GAME_HEIGHT) {
+      if (px + PIVOT_HALF < 0 || px - PIVOT_HALF > GAME_WIDTH || py + PIVOT_HALF < 0 || py - PIVOT_HALF > GAME_HEIGHT) {
         continue;
       }
 
       if (typeof pivotGraphics.rect === 'function') {
-        pivotGraphics.rect(px, py, 1, 1);
+        pivotGraphics.rect(px - PIVOT_HALF, py - PIVOT_HALF, PIVOT_SIZE, PIVOT_SIZE);
       } else if (typeof pivotGraphics.drawRect === 'function') {
-        pivotGraphics.drawRect(px, py, 1, 1);
+        pivotGraphics.drawRect(px - PIVOT_HALF, py - PIVOT_HALF, PIVOT_SIZE, PIVOT_SIZE);
       } else {
-        pivotGraphics.circle(px, py, 0.5);
+        pivotGraphics.circle(px, py, PIVOT_SIZE / 2);
       }
       if (typeof pivotGraphics.fill === 'function') {
         pivotGraphics.fill({ color: 0xc084fc, alpha: 1.0 });
@@ -1696,7 +1698,7 @@ function setup() {
 
     // Acquire or re-validate hostile target
     let target = shipData.combatTarget;
-    if (!target || !target.sprite || !target.data || target.data.isDestroyed || (target.data.paint && shipData.paint && target.data.paint.name === shipData.paint.name && target !== shipData.lastAttacker)) {
+    if (!target || !target.sprite || !target.data || target.data.isDestroyed || (target.data.paint && shipData.paint && target.data.paint.name === shipData.paint.name)) {
       target = findNearestHostile(ship, allCombatants);
       shipData.combatTarget = target;
     }
@@ -2162,10 +2164,18 @@ function setup() {
   onSelectNearestHostile = selectNearestHostile;
 
   // When a ship is hit by a projectile, switch its target to the projectile's parent as the most immediate threat
+  // (only applies to ships from different factions, giving friendly fire the benefit of the doubt)
   function handleShipHit(targetShip, proj, allShips) {
     if (!targetShip || !targetShip.data || targetShip.data.isDestroyed) return;
     const parentShip = proj.parentShip || proj.ship || proj.parent || (allShips && allShips.find((s) => s && s.data && s.data.id === proj.shipId));
     if (!parentShip || parentShip === targetShip || !parentShip.data || parentShip.data.isDestroyed) return;
+
+    // Friendly fire check: retaliatory targeting only applies to ships from different factions
+    const targetFaction = targetShip.data.paint ? targetShip.data.paint.name : (targetShip.data.faction || null);
+    const parentFaction = parentShip.data.paint ? parentShip.data.paint.name : (parentShip.data.faction || null);
+    if (targetFaction && parentFaction && targetFaction === parentFaction) {
+      return;
+    }
 
     if (targetShip === playerShip) {
       currentTargetId = parentShip.data.id;
@@ -2373,6 +2383,7 @@ function setup() {
     });
     window.pivotGraphics = pivotGraphics;
     window.updatePivotGraphics = updatePivotGraphics;
+    window.PIVOT_SIZE = PIVOT_SIZE;
     window.DISABLED_ARMOR_THRESHOLD = DISABLED_ARMOR_THRESHOLD;
     window.playerShip = playerShip;
     window.spawnNpcShips = spawnNpcShips;
@@ -2734,10 +2745,10 @@ function setup() {
 
       targetCtx.restore();
 
-      // Draw pivot pixel on target monitor if active
+      // Draw pivot highlight on target monitor if active
       if (showPivots) {
         targetCtx.fillStyle = '#c084fc';
-        targetCtx.fillRect(Math.round(cx), Math.round(cy), 1, 1);
+        targetCtx.fillRect(Math.round(cx) - PIVOT_HALF, Math.round(cy) - PIVOT_HALF, PIVOT_SIZE, PIVOT_SIZE);
       }
     }
 
