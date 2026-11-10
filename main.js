@@ -1656,10 +1656,13 @@ function setup() {
     let aimY = dy;
     let inRange = false;
 
+    const dist = Math.hypot(dx, dy);
+    const maxFlightTime = mult > 1.0 ? lifetime * mult : lifetime * 1.15;
+
     if (t > 0) {
       aimX = dx + relVx * t;
       aimY = dy + relVy * t;
-      inRange = t <= (lifetime * mult) * (mult > 1.0 ? 1.01 : 1.15);
+      inRange = dist <= maxRange || t <= maxFlightTime;
     } else {
       const distSq = dx * dx + dy * dy;
       // If no valid intercept solution exists (e.g. crossing faster than muzzle speed),
@@ -1989,6 +1992,7 @@ function setup() {
       const closingSpeed = losX * relVx + losY * relVy;
 
       // Account for velocity gained by projectiles when firing forward at speed
+      const baseWeaponRange = weaponSpeed * weaponLifetime;
       const forwardSpeed = Math.max(0, shipData.vx * fwdX + shipData.vy * fwdY);
       const forwardSpeedBoost = Math.max(forwardSpeed, closingSpeed || 0);
       const effectiveWeaponSpeed = weaponSpeed + forwardSpeedBoost;
@@ -1996,8 +2000,8 @@ function setup() {
 
       aimAndShoot(ship, target, 1.5);
 
-      const targetMaxRange = effectiveWeaponRange * 0.92;
-      const targetMinRange = effectiveWeaponRange * 0.72;
+      const targetMaxRange = Math.max(baseWeaponRange * 0.92, effectiveWeaponRange * 0.92);
+      const targetMinRange = baseWeaponRange * 0.72;
 
       if (dist > targetMaxRange) {
         // Distance is drifting out of range or already out of range:
