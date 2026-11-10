@@ -1621,12 +1621,19 @@ function setup() {
 
     const fwdX = Math.sin(shooter.sprite.rotation);
     const fwdY = -Math.cos(shooter.sprite.rotation);
-    const forwardSpeed = Math.max(0, (shooter.data.vx || 0) * fwdX + (shooter.data.vy || 0) * fwdY);
+    const dx = target.sprite.x - shooter.sprite.x;
+    const dy = target.sprite.y - shooter.sprite.y;
+    const dist = Math.hypot(dx, dy);
+    const losX = dist > 0 ? dx / dist : 0;
+    const losY = dist > 0 ? dy / dist : 0;
+    const forwardSpeed = Math.max(
+      0,
+      (shooter.data.vx || 0) * fwdX + (shooter.data.vy || 0) * fwdY,
+      (shooter.data.vx || 0) * losX + (shooter.data.vy || 0) * losY
+    );
     const effectiveSpeed = speed + forwardSpeed;
     const maxRange = effectiveSpeed * lifetime * mult;
 
-    const dx = target.sprite.x - shooter.sprite.x;
-    const dy = target.sprite.y - shooter.sprite.y;
     const relVx = target.data.vx - shooter.data.vx;
     const relVy = target.data.vy - shooter.data.vy;
 
@@ -1656,7 +1663,6 @@ function setup() {
     let aimY = dy;
     let inRange = false;
 
-    const dist = Math.hypot(dx, dy);
     const maxFlightTime = mult > 1.0 ? lifetime * mult : lifetime * 1.15;
 
     if (t > 0) {
@@ -1686,9 +1692,9 @@ function setup() {
     // Recompute angle difference after turning this frame
     const remainingDiff = Math.abs(normalizeAngle(aimAngle - ship.sprite.rotation));
 
-    // Bias toward firing even if not perfectly aligned (within ~43 degrees / 0.75 rad) to increase hits
+    // Bias toward firing even if not perfectly aligned (within ~49 degrees / 0.85 rad) to increase hits
     // Only fire if there is a valid ballistic intercept solution (or target is point-blank)
-    if (inRange && (interceptTime > 0 || !interceptTime) && (remainingDiff < 0.75 || Math.abs(angleDiff) < 0.75)) {
+    if (inRange && (interceptTime > 0 || !interceptTime) && (remainingDiff < 0.85 || Math.abs(angleDiff) < 0.85)) {
       fireShipWeapons(ship);
     }
     return { aimAngle, angleDiff, inRange };
@@ -1978,9 +1984,9 @@ function setup() {
       // === STANDOFF STRATEGY ===
       // Focus on managing range between attacker and target near maximum weapon range while shooting as much as possible.
       // Immediately turn and shoot with shot leading, beginning to fire at 1.5x max weapon range.
-      // Apply forward thrust if distance starts to drift out of range, just enough to get back in range.
-      // Lateral drift is preserved to naturally orbit and maintain range.
-      // Ships with reversible thrusters use reverse thrust to tweak range and relative motion to stay near maximum range.
+      // Aggressively pursue fleeing targets with full thrust to stay on their tail and within weapon range.
+      // Lateral drift is preserved to naturally orbit and maintain range when target is not fleeing.
+      // Ships with reversible thrusters use reverse thrust to back off when inside minimum range.
       const fwdX = Math.sin(shipSprite.rotation);
       const fwdY = -Math.cos(shipSprite.rotation);
       const losX = dx / Math.max(1, dist);
@@ -1991,9 +1997,12 @@ function setup() {
       const relVy = shipData.vy - target.data.vy;
       const closingSpeed = losX * relVx + losY * relVy;
 
+      // Speed of target moving away from shooter along line of sight
+      const targetAwaySpeed = losX * (target.data.vx || 0) + losY * (target.data.vy || 0);
+
       // Account for velocity gained by projectiles when firing forward at speed
       const baseWeaponRange = weaponSpeed * weaponLifetime;
-      const forwardSpeed = Math.max(0, shipData.vx * fwdX + shipData.vy * fwdY);
+      const forwardSpeed = Math.max(0, shipData.vx * fwdX + shipData.vy * fwdY, (shipData.vx || 0) * losX + (shipData.vy || 0) * losY);
       const forwardSpeedBoost = Math.max(forwardSpeed, closingSpeed || 0);
       const effectiveWeaponSpeed = weaponSpeed + forwardSpeedBoost;
       const effectiveWeaponRange = effectiveWeaponSpeed * weaponLifetime;
@@ -2003,31 +2012,24 @@ function setup() {
       const targetMaxRange = Math.max(baseWeaponRange * 0.92, effectiveWeaponRange * 0.92);
       const targetMinRange = baseWeaponRange * 0.72;
 
-      if (dist > targetMaxRange) {
-        // Distance is drifting out of range or already out of range:
-        // Apply forward thrust just enough to get back in range
-        const excessDist = dist - targetMaxRange;
-        const desiredClosingSpeed = Math.min(maxSpeed * 0.8, Math.max(15, excessDist * 0.6));
+      const isTargetFleeing = (targetAwaySpeed > 10 && closingSpeed < 5) || closingSpeed < -5;
+      const isTooClose = dist < targetMinRange;
 
-        if (closingSpeed < desiredClosingSpeed && dotFwdLOS > 0.4) {
-          const neededDv = (desiredClosingSpeed - closingSpeed) / Math.max(0.1, dotFwdLOS);
-          if (neededDv > 0.5) {
-            const step = Math.min(dvMax, neededDv);
-            const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
-            shipData.vx = clamped.vx;
-            shipData.vy = clamped.vy;
-            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
-            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
-          } else {
-            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
-            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
-          }
+      if (dist > targetMaxRange || (isTargetFleeing && !isTooClose)) {
+        // Target is fleeing / opening distance or beyond max range:
+        // Aggressively pursue with forward thrust to keep up and stay in weapon range
+        if (dotFwdLOS > 0.2) {
+          const step = dvMax;
+          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+          shipData.vx = clamped.vx;
+          shipData.vy = clamped.vy;
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         } else {
           if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
       } else if (shipData.engine && shipData.engine.reversible) {
-        // Reversible engine: tweak range and relative motion to stay right near maximum range
         if (dist < targetMinRange) {
           // Inside min range: back off with reverse thrust
           const underDist = targetMinRange - dist;
@@ -2049,8 +2051,8 @@ function setup() {
             if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
             if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           }
-        } else if (closingSpeed > 10 && dotFwdLOS > 0.4) {
-          // Within sweet spot, but target is closing rapidly: tweak relative motion to arrest closing speed
+        } else if (dist < targetMinRange + 15 && closingSpeed > 15 && dotFwdLOS > 0.4) {
+          // Only arrest closing speed if close to targetMinRange and closing fast
           const neededReverseDv = (closingSpeed - 0) / Math.max(0.1, dotFwdLOS);
           if (neededReverseDv > 0.5) {
             const step = Math.min(dvMax, neededReverseDv);

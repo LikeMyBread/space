@@ -461,4 +461,40 @@ assert.strictEqual(chasingAttacker.data.engineReverseSprite.visible, false, 'Shi
 assert(chasingAttacker.data.weapons[0].lastFired > beforeChaseFire, 'Ship chasing at 80px must open fire');
 console.log('✓ Standoff min range remains stable at 63px and opens fire without reverse thruster jitter');
 
+console.log('--- 12. Testing Aggressive Pursuit of Fleeing Target & Counter-Fire on Turnaround ---');
+// Attacker and target have identical ships and engines
+const pursueAttacker = buildShip(null, revEngine);
+pursueAttacker.data.combatStrategy = 'standoff';
+pursueAttacker.data.paint = { name: 'red', hex: '#ef4444' };
+pursueAttacker.sprite.position.set(500, 500);
+pursueAttacker.sprite.rotation = 0; // Facing north
+pursueAttacker.data.vx = 0;
+pursueAttacker.data.vy = 0;
+
+const fleeTarget = buildShip(null, revEngine);
+fleeTarget.data.paint = { name: 'blue', hex: '#3b82f6' };
+fleeTarget.sprite.position.set(500, 425); // 75px ahead (inside sweet spot)
+fleeTarget.sprite.rotation = 0; // Fleeing north
+fleeTarget.data.vx = 0;
+fleeTarget.data.vy = -fleeTarget.data.maxSpeed; // Moving away at max speed
+pursueAttacker.data.combatTarget = fleeTarget;
+
+// 1. When target is fleeing away, attacker must aggressively ignite forward thrust even inside targetMaxRange
+updateNpcCombat(pursueAttacker, 1, 1/60, [pursueAttacker, fleeTarget]);
+assert.strictEqual(pursueAttacker.data.engineLitSprite.visible, true, 'Attacker must aggressively burn forward thrust when target is fleeing');
+assert.strictEqual(pursueAttacker.data.engineReverseSprite.visible, false, 'Attacker must not reverse when chasing fleeing target');
+assert(pursueAttacker.data.vy < 0, 'Attacker must accelerate forward toward fleeing target');
+console.log('✓ Standoff ship aggressively burns forward thrusters when pursuing a fleeing target');
+
+// 2. Fleeing target turns around (facing south) to engage and shoot backwards while drifting
+fleeTarget.sprite.rotation = Math.PI; // Facing south toward attacker
+pursueAttacker.data.weapons[0].lastFired = -Infinity;
+pursueAttacker.data.weaponGroups = null;
+const beforeCounterFire = pursueAttacker.data.weapons[0].lastFired;
+
+updateNpcCombat(pursueAttacker, 1, 1/60, [pursueAttacker, fleeTarget]);
+assert(pursueAttacker.data.weapons[0].lastFired > beforeCounterFire, 'Standoff ship must immediately return fire when turnaround target engages');
+assert.strictEqual(pursueAttacker.data.engineReverseSprite.visible, false, 'Standoff ship must not slam reverse brakes during combat engagement at 75px');
+console.log('✓ Standoff ship immediately returns fire and maintains attack pressure without premature reverse braking');
+
 console.log('\nALL STANDOFF STRATEGY TESTS PASSED SUCCESSFULLY! 🎯🛡️');
