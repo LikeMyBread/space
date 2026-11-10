@@ -762,6 +762,70 @@ function formFleet(leader, followerShips, spacing = FORMATION_DISTANCE) {
   }
 }
 
+function getShipMaxWeaponRange(ship) {
+  if (!ship || !ship.data) return 350;
+  let maxRange = 350;
+  if (ship.data.weapons && ship.data.weapons.length > 0) {
+    for (let i = 0; i < ship.data.weapons.length; i++) {
+      const slot = ship.data.weapons[i];
+      if (slot && slot.weapon && slot.weapon.projectile) {
+        const r = slot.weapon.projectile.speed * slot.weapon.projectile.lifetime;
+        if (r > maxRange) maxRange = r;
+      }
+    }
+  }
+  return maxRange;
+}
+
+function getFleetLeader(ship, allShipsList) {
+  if (!ship || !ship.data || !ship.data.paint) return null;
+  const myColor = ship.data.paint.name;
+  const list = allShipsList || (typeof window !== 'undefined' && window.ships && window.playerShip ? [window.playerShip, ...window.ships] : []);
+  let best = null;
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    if (!s || !s.data || s.data.isDestroyed || s.data.isDisabled || s.data.isDerelict) continue;
+    if (!s.data.paint || s.data.paint.name !== myColor) continue;
+    if (!best || s.data.id < best.data.id) {
+      best = s;
+    }
+  }
+  return best;
+}
+
+function organizeFleets(allShipsList) {
+  const list = allShipsList || (typeof window !== 'undefined' && window.ships && window.playerShip ? [window.playerShip, ...window.ships] : []);
+  const activeShips = list.filter((s) => s && s.data && !s.data.isDestroyed && !s.data.isDisabled && !s.data.isDerelict);
+
+  // Group by faction paint color
+  const fleetsByColor = new Map();
+  for (let i = 0; i < activeShips.length; i++) {
+    const s = activeShips[i];
+    const color = (s.data.paint && s.data.paint.name) || 'default';
+    if (!fleetsByColor.has(color)) {
+      fleetsByColor.set(color, []);
+    }
+    fleetsByColor.get(color).push(s);
+  }
+
+  for (const [color, fleet] of fleetsByColor.entries()) {
+    fleet.sort((a, b) => a.data.id - b.data.id);
+    const leader = fleet[0];
+    leader.data.formationLeader = null;
+    leader.data.isFleetLeader = true;
+    leader.data.formationSlot = null;
+
+    const followers = fleet.slice(1);
+    for (let i = 0; i < followers.length; i++) {
+      followers[i].data.isFleetLeader = false;
+      followers[i].data.formationLeader = leader;
+    }
+    if (followers.length > 0) {
+      formFleet(leader, followers, FORMATION_DISTANCE);
+    }
+  }
+}
+
 const stars = [];
 const projectiles = [];
 let starContainer = null;
@@ -1354,9 +1418,9 @@ function setup() {
     if (pivotGraphics) {
       app.stage.addChild(pivotGraphics);
     }
-    // Form the fleet if not in combat mode
+    // Form fleets if not in combat mode
     if (!isFighting) {
-      formFleet(playerShip, ships);
+      organizeFleets([playerShip, ...ships]);
     }
     updateShipCount();
   }
@@ -1392,7 +1456,7 @@ function setup() {
           ship.data.aiState = 'APPROACH';
         }
       }
-      formFleet(playerShip, ships);
+      organizeFleets([playerShip, ...ships]);
       event.target.blur();
     });
   }
@@ -1639,61 +1703,115 @@ function setup() {
 
     // Retreat condition: shields fall below 25%
     const maxShield = shipData.maxShield || 10;
-    if (!shipData.isRetreating && shipData.shield < maxShield * 0.25) {
+    if (shipData.shield >= maxShield * 0.25) {
+      shipData.justRendezvoused = false;
+    }
+    if (!shipData.isRetreating && !shipData.justRendezvoused && shipData.shield < maxShield * 0.25) {
       shipData.isRetreating = true;
-    } else if (shipData.isRetreating && shipData.shield >= maxShield - 0.01) {
-      shipData.isRetreating = false;
     }
 
-    // Retreating state: flee away from all hostile ships until shields fully recovered
+    const leader = getFleetLeader(ship, allCombatants);
+    const hasSeparateLeader = leader && leader !== ship && !leader.data.isDestroyed && !leader.data.isDisabled;
+
+    // Retreating state: turn to retreat toward lead ship, or flee hostiles if leader
     if (shipData.isRetreating) {
-      shipData.aiState = 'RETREAT';
-      const myColor = shipData.paint ? shipData.paint.name : null;
-      let fleeX = 0;
-      let fleeY = 0;
-      let hostileCount = 0;
+      if (hasSeparateLeader) {
+        const ldx = leader.sprite.x - shipSprite.x;
+        const ldy = leader.sprite.y - shipSprite.y;
+        const distToLeader = Math.sqrt(ldx * ldx + ldy * ldy);
+        const maxRange = getShipMaxWeaponRange(ship);
+        const rendezvousThreshold = 2 * maxRange;
 
-      for (let j = 0; j < allCombatants.length; j++) {
-        const other = allCombatants[j];
-        if (!other || other === ship || !other.data || !other.sprite || other.data.isDestroyed) continue;
-        if (!other.data.paint || other.data.paint.name === myColor) continue;
-
-        const dx = shipSprite.x - other.sprite.x;
-        const dy = shipSprite.y - other.sprite.y;
-        const distSq = dx * dx + dy * dy;
-        if (distSq > 0 && distSq < 1500 * 1500) {
-          const dist = Math.sqrt(distSq);
-          const weight = 1 / Math.max(10, dist);
-          fleeX += (dx / dist) * weight;
-          fleeY += (dy / dist) * weight;
-          hostileCount++;
-        }
-      }
-
-      if (hostileCount > 0 && (fleeX !== 0 || fleeY !== 0)) {
-        const fleeAngle = Math.atan2(fleeX, -fleeY);
-        const angleDiff = normalizeAngle(fleeAngle - shipSprite.rotation);
-        shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
-
-        if (Math.abs(angleDiff) < 0.5) {
-          const step = Math.min(dvMax, accel * dt);
-          const fwdX = Math.sin(shipSprite.rotation);
-          const fwdY = -Math.cos(shipSprite.rotation);
-          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
-          shipData.vx = clamped.vx;
-          shipData.vy = clamped.vy;
-          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
-          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        // Once they have travelled to rendezvous with it (pass within 2x their maximum weapon range of their leader)
+        // they should then target the nearest enemy ship and set off to attack it.
+        if (distToLeader <= rendezvousThreshold) {
+          shipData.isRetreating = false;
+          shipData.justRendezvoused = true;
+          shipData.aiState = 'COMBAT';
+          shipData.combatTarget = findNearestHostile(ship, allCombatants);
+          if (!shipData.combatStrategy) {
+            shipData.combatStrategy = getRandomCombatStrategy();
+          }
         } else {
-          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          shipData.aiState = 'RETREAT';
+          const targetAngle = Math.PI / 2 + Math.atan2(ldy, ldx);
+          const angleDiff = normalizeAngle(targetAngle - shipSprite.rotation);
+          shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+
+          if (Math.abs(angleDiff) < 0.5) {
+            const step = Math.min(dvMax, accel * dt);
+            const fwdX = Math.sin(shipSprite.rotation);
+            const fwdY = -Math.cos(shipSprite.rotation);
+            const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+            shipData.vx = clamped.vx;
+            shipData.vy = clamped.vy;
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          } else {
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          }
+
+          shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
+          shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
+          return;
         }
       } else {
-        if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
-      }
+        // Leader or lone ship: flee away from all hostile ships until shields fully recovered
+        if (shipData.shield >= maxShield - 0.01) {
+          shipData.isRetreating = false;
+          shipData.aiState = 'COMBAT';
+          shipData.combatTarget = findNearestHostile(ship, allCombatants);
+        } else {
+          shipData.aiState = 'RETREAT';
+          const myColor = shipData.paint ? shipData.paint.name : null;
+          let fleeX = 0;
+          let fleeY = 0;
+          let hostileCount = 0;
 
-      shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
-      shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
-      return;
+          for (let j = 0; j < allCombatants.length; j++) {
+            const other = allCombatants[j];
+            if (!other || other === ship || !other.data || !other.sprite || other.data.isDestroyed) continue;
+            if (!other.data.paint || other.data.paint.name === myColor) continue;
+
+            const dx = shipSprite.x - other.sprite.x;
+            const dy = shipSprite.y - other.sprite.y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > 0 && distSq < 1500 * 1500) {
+              const dist = Math.sqrt(distSq);
+              const weight = 1 / Math.max(10, dist);
+              fleeX += (dx / dist) * weight;
+              fleeY += (dy / dist) * weight;
+              hostileCount++;
+            }
+          }
+
+          if (hostileCount > 0 && (fleeX !== 0 || fleeY !== 0)) {
+            const fleeAngle = Math.atan2(fleeX, -fleeY);
+            const angleDiff = normalizeAngle(fleeAngle - shipSprite.rotation);
+            shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+
+            if (Math.abs(angleDiff) < 0.5) {
+              const step = Math.min(dvMax, accel * dt);
+              const fwdX = Math.sin(shipSprite.rotation);
+              const fwdY = -Math.cos(shipSprite.rotation);
+              const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+              shipData.vx = clamped.vx;
+              shipData.vy = clamped.vy;
+              if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+              if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+            } else {
+              if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+            }
+          } else {
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          }
+
+          shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
+          shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
+          return;
+        }
+      }
     }
 
     // Acquire or re-validate hostile target
@@ -2106,6 +2224,9 @@ function setup() {
       const newPaint = FACTION_PAINTS.find((p) => p.name === selectedName);
       if (newPaint) {
         updatePlayerShipConfig({ paint: newPaint });
+        if (!isFighting) {
+          organizeFleets([playerShip, ...ships]);
+        }
       }
       event.target.blur();
     });
@@ -2164,9 +2285,12 @@ function setup() {
   onSelectNearestHostile = selectNearestHostile;
 
   // When a ship is hit by a projectile, switch its target to the projectile's parent as the most immediate threat
-  // (only applies to ships from different factions, giving friendly fire the benefit of the doubt)
+  // (does not apply to player targeting, and only applies to ships from different factions)
   function handleShipHit(targetShip, proj, allShips) {
     if (!targetShip || !targetShip.data || targetShip.data.isDestroyed) return;
+    // Retaliatory targeting does not apply to the player
+    if (targetShip === playerShip) return;
+
     const parentShip = proj.parentShip || proj.ship || proj.parent || (allShips && allShips.find((s) => s && s.data && s.data.id === proj.shipId));
     if (!parentShip || parentShip === targetShip || !parentShip.data || parentShip.data.isDestroyed) return;
 
@@ -2177,10 +2301,7 @@ function setup() {
       return;
     }
 
-    if (targetShip === playerShip) {
-      currentTargetId = parentShip.data.id;
-      playerShip.data.combatTarget = parentShip;
-    } else if (!targetShip.data.isDerelict && !targetShip.data.isDisabled) {
+    if (!targetShip.data.isDerelict && !targetShip.data.isDisabled) {
       targetShip.data.combatTarget = parentShip;
       targetShip.data.lastAttacker = parentShip;
       if (isFighting && !targetShip.data.combatStrategy) {
@@ -2390,6 +2511,9 @@ function setup() {
     window.ships = ships;
     window.derelictShip = derelictShip;
     window.buildShip = buildShip;
+    window.organizeFleets = organizeFleets;
+    window.getFleetLeader = getFleetLeader;
+    window.getShipMaxWeaponRange = getShipMaxWeaponRange;
   }
 
   if (targetIdBadge) {
@@ -3128,19 +3252,35 @@ function setup() {
         continue;
       }
 
+      // Fleet formation: find designated leader of this color (lowest ID)
+      let leader = shipData.formationLeader;
+      if (!leader || leader.data.isDestroyed || leader.data.isDisabled) {
+        leader = getFleetLeader(ship, allShips);
+        shipData.formationLeader = leader;
+      }
+
+      // If this ship is the fleet leader (or lone ship), it leads and does not follow in formation
+      if (!leader || leader === ship) {
+        if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+        if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        shipSprite.x -= (playerShip.data.vx - shipData.vx) * delta * (60 / 1000) || 0;
+        shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
+        continue;
+      }
+
       // Formation offset relative to the formation leader based on the hexagonal grid
       const offset = shipData.formationOffset || { x: 0, y: FORMATION_DISTANCE };
-      const targetX = playerShip.sprite.x + offset.x;
-      const targetY = playerShip.sprite.y + offset.y;
+      const targetX = leader.sprite.x + offset.x;
+      const targetY = leader.sprite.y + offset.y;
 
       // Distance and vector from ship to its assigned formation position
       const dx = targetX - shipSprite.x;
       const dy = targetY - shipSprite.y;
       const distSq = dx * dx + dy * dy;
 
-      // Relative velocity: v_npc - v_player
-      const relVx = shipData.vx - playerShip.data.vx;
-      const relVy = shipData.vy - playerShip.data.vy;
+      // Relative velocity: v_npc - v_leader
+      const relVx = shipData.vx - leader.data.vx;
+      const relVy = shipData.vy - leader.data.vy;
       const relSpeedSq = relVx * relVx + relVy * relVy;
       const relSpeed = Math.sqrt(relSpeedSq);
 
@@ -3221,7 +3361,7 @@ function setup() {
             const forwardX = Math.sin(shipSprite.rotation);
             const forwardY = -Math.cos(shipSprite.rotation);
             const currentSpeedInDir = shipData.vx * forwardX + shipData.vy * forwardY;
-            const targetSpeedInDir = (playerShip.data.vx + desiredVx) * forwardX + (playerShip.data.vy + desiredVy) * forwardY;
+            const targetSpeedInDir = (leader.data.vx + desiredVx) * forwardX + (leader.data.vy + desiredVy) * forwardY;
 
             if (currentSpeedInDir < targetSpeedInDir) {
               const dvNeeded = targetSpeedInDir - currentSpeedInDir;
@@ -3287,8 +3427,8 @@ function setup() {
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
       } else if (shipData.aiState === 'FORMATION') {
-        // Matched velocity: turn to face the same direction as the player to follow their lead
-        const targetAngle = playerShip.sprite.rotation;
+        // Matched velocity: turn to face the same direction as the leader to follow their lead
+        const targetAngle = leader.sprite.rotation;
         let angleDiff = normalizeAngle(targetAngle - shipSprite.rotation);
         shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(Math.min(angleDiff, TURN_RATE), -TURN_RATE));
 
