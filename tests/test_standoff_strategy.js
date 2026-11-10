@@ -309,9 +309,9 @@ assert.strictEqual(joustLead.inRange, false, 'Non-standoff ship at 120px must no
 console.log('✓ Standoff strategy fires at 1.5x max weapon range (120px in range, 145px out of range, non-standoff excluded)');
 
 console.log('--- 4. Testing Range Management: Forward Thrust when Drifting Beyond Max Range ---');
-// Weapon range is 87.5px. targetMaxRange is 87.5 * 0.92 = 80.5px.
-// Move target to 120px away (beyond max range)
-target.sprite.position.set(500, 380); // dist = 120px
+// Standoff weapon range is 87.5 * 1.5 = 131.25px. targetMaxRange is 131.25 * 0.92 = 120.75px.
+// Move target to 150px away (beyond max standoff range)
+target.sprite.position.set(500, 350); // dist = 150px
 attacker.data.vx = 0;
 attacker.data.vy = 0;
 attacker.sprite.rotation = 0; // facing north towards target
@@ -494,12 +494,18 @@ subStateAttacker.data.combatTarget = subStateTarget;
 updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
 assert.strictEqual(subStateAttacker.data.strategySubState, 'CLOSING', 'Standoff beyond max range must be CLOSING');
 
-// B. Sweet spot (75px away, targetMaxRange ~87.5px, targetMinRange ~63px) -> HOLDING RANGE
-subStateTarget.sprite.position.set(500, 425);
+// B. Sweet spot (75px & 100px away, targetMaxRange ~120.75px, targetMinRange ~63px) -> HOLDING RANGE
+subStateTarget.sprite.position.set(500, 425); // 75px
 subStateAttacker.data.vx = 0;
 subStateAttacker.data.vy = 0;
 updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
-assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff in sweet spot must be HOLDING RANGE');
+assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff in sweet spot at 75px must be HOLDING RANGE');
+
+subStateTarget.sprite.position.set(500, 400); // 100px (well within 1.5x weapon range)
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = 0;
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff at 100px must be in HOLDING RANGE stage (not stuck in CLOSING)');
 
 // C. Inside min range (30px away < targetMinRange) -> BACKING OFF
 subStateTarget.sprite.position.set(500, 470);
@@ -539,7 +545,31 @@ lonelyAttacker.sprite.position.set(500, 500);
 updateNpcCombat(lonelyAttacker, 1, 1/60, [lonelyAttacker, subStateTarget]);
 assert.strictEqual(lonelyAttacker.data.strategySubState, 'FLEEING', 'Retreating ship without fleet leader must have substate FLEEING');
 
-console.log('✓ Dynamic strategySubState assigns CLOSING, HOLDING RANGE, BACKING OFF, BRAKING, TO LEADER, and FLEEING accurately');
+// F. Jousting sub-states: ATTACK RUN when approaching, EXTENDING when separating
+const testJouster = buildShip();
+testJouster.data.combatStrategy = 'joust';
+testJouster.data.paint = { name: 'gold', hex: '#fbbf24' };
+testJouster.sprite.position.set(500, 500);
+testJouster.sprite.rotation = 0; // facing north
+testJouster.data.vx = 0;
+testJouster.data.vy = -testJouster.data.maxSpeed; // charging north at max speed
+
+const joustOpponent = buildShip();
+joustOpponent.data.paint = { name: 'red', hex: '#ef4444' };
+joustOpponent.sprite.position.set(500, 350); // 150px north (approaching head-on)
+joustOpponent.data.vx = 0;
+joustOpponent.data.vy = 0;
+testJouster.data.combatTarget = joustOpponent;
+
+updateNpcCombat(testJouster, 1, 1/60, [testJouster, joustOpponent]);
+assert.strictEqual(testJouster.data.strategySubState, 'ATTACK RUN', 'Jousting ship approaching target from 150px must be on ATTACK RUN (not stuck in EXTENDING)');
+
+// When separating after a pass (opponent behind jouster at 100px, moving away)
+joustOpponent.sprite.position.set(500, 600); // 100px south (behind jouster moving north)
+updateNpcCombat(testJouster, 1, 1/60, [testJouster, joustOpponent]);
+assert.strictEqual(testJouster.data.strategySubState, 'EXTENDING', 'Jousting ship separating past opponent must be in EXTENDING stage');
+
+console.log('✓ Dynamic strategySubState assigns CLOSING, HOLDING RANGE, BACKING OFF, BRAKING, TO LEADER, FLEEING, ATTACK RUN, and EXTENDING accurately');
 
 // 3. Target Monitor UI updates
 const targetStateEl = domMap.get('target-state-val');

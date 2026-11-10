@@ -2013,9 +2013,11 @@ function setup() {
       const effectiveWeaponSpeed = weaponSpeed + forwardSpeedBoost;
       const effectiveWeaponRange = effectiveWeaponSpeed * weaponLifetime;
 
-      aimAndShoot(ship, target, 1.5);
+      // Standoff strategy begins firing at 1.5x max weapon range
+      const STANDOFF_RANGE_MULT = 1.5;
+      aimAndShoot(ship, target, STANDOFF_RANGE_MULT);
 
-      const targetMaxRange = Math.max(baseWeaponRange * 0.92, effectiveWeaponRange * 0.92);
+      const targetMaxRange = Math.max(baseWeaponRange * STANDOFF_RANGE_MULT * 0.92, effectiveWeaponRange * STANDOFF_RANGE_MULT * 0.92);
       const targetMinRange = baseWeaponRange * 0.72;
 
       if (dist > targetMaxRange) {
@@ -2095,15 +2097,14 @@ function setup() {
     } else {
       // === JOUSTING STRATEGY ===
       // Keep speed up, thrust toward opponent to pass as close as possible at max speed,
-      // turn and shoot while in range using shot leading, turn and thrust for next pass once out of range.
-      const inRange = dist <= weaponRange * 1.1;
+      // turn and shoot while approaching and in range using shot leading, extend and reset once past opponent.
       const relVx = target.data.vx - shipData.vx;
       const relVy = target.data.vy - shipData.vy;
       const radialSpeed = (dx * relVx + dy * relVy) / Math.max(1, dist);
       const isSeparating = radialSpeed > 5 && dist > weaponRange * 0.7;
 
-      if (inRange && !isSeparating) {
-        // High speed inbound / passing run: turn and shoot with shot leading
+      if (!isSeparating) {
+        // Inbound attack run / passing run: point and shoot with shot leading
         shipData.strategySubState = 'ATTACK RUN';
         aimAndShoot(ship, target);
 
@@ -2122,7 +2123,7 @@ function setup() {
         }
         if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
       } else {
-        // Out of range or separating: turn and thrust toward opponent for another high speed pass
+        // Outbound extending: turn and thrust toward opponent for next high speed pass
         shipData.strategySubState = 'EXTENDING';
         const desiredVx = (dx / Math.max(1, dist)) * maxSpeed;
         const desiredVy = (dy / Math.max(1, dist)) * maxSpeed;
@@ -2148,12 +2149,11 @@ function setup() {
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
 
-        if (inRange) {
-          const { aimAngle, inRange: leadInRange, interceptTime } = getLeadSolution(ship, target);
-          const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
-          if (leadInRange && (interceptTime > 0 || !interceptTime) && aimDiff < 0.75) {
-            fireShipWeapons(ship);
-          }
+        // Opportunistic shot if serendipitously aligned while extending
+        const { aimAngle, inRange: leadInRange, interceptTime } = getLeadSolution(ship, target);
+        const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
+        if (leadInRange && (interceptTime > 0 || !interceptTime) && aimDiff < 0.75) {
+          fireShipWeapons(ship);
         }
       }
     }
