@@ -4,7 +4,8 @@
   "description": "Space ship customization and simulation game",
   "main": "main.js",
   "scripts": {
-    "start": "python3 -m http.server 8080"
+    "start": "python3 -m http.server 8080",
+    "test": "node tests/run_all_tests.js"
   },
   "dependencies": {
     "pixi.js": "^8.22.0"
