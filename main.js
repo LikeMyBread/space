@@ -1605,13 +1605,16 @@ function setup() {
     return String(strategy).toUpperCase();
   }
 
-  function getLeadSolution(shooter, target) {
+  function getLeadSolution(shooter, target, rangeMultiplier = 1.0) {
     const weapon = (shooter.data.weapons && shooter.data.weapons[0] && shooter.data.weapons[0].weapon)
       ? shooter.data.weapons[0].weapon
       : WEAPONS_DATA.light_blaster;
     const speed = weapon.projectile.speed;
     const lifetime = weapon.projectile.lifetime;
-    const maxRange = speed * lifetime;
+    const mult = (rangeMultiplier !== 1.0)
+      ? rangeMultiplier
+      : (shooter.data && shooter.data.combatStrategy === 'standoff' ? 1.5 : 1.0);
+    const maxRange = speed * lifetime * mult;
 
     const dx = target.sprite.x - shooter.sprite.x;
     const dy = target.sprite.y - shooter.sprite.y;
@@ -1647,7 +1650,7 @@ function setup() {
     if (t > 0) {
       aimX = dx + relVx * t;
       aimY = dy + relVy * t;
-      inRange = t <= lifetime * 1.15;
+      inRange = t <= (lifetime * mult) * (mult > 1.0 ? 1.01 : 1.15);
     } else {
       const distSq = dx * dx + dy * dy;
       // If no valid intercept solution exists (e.g. crossing faster than muzzle speed),
@@ -1659,8 +1662,11 @@ function setup() {
     return { aimAngle, inRange, interceptTime: t, maxRange };
   }
 
-  function aimAndShoot(ship, target) {
-    const { aimAngle, inRange, interceptTime } = getLeadSolution(ship, target);
+  function aimAndShoot(ship, target, rangeMultiplier = 1.0) {
+    const mult = (rangeMultiplier !== 1.0)
+      ? rangeMultiplier
+      : (ship.data && ship.data.combatStrategy === 'standoff' ? 1.5 : 1.0);
+    const { aimAngle, inRange, interceptTime } = getLeadSolution(ship, target, mult);
     const angleDiff = normalizeAngle(aimAngle - ship.sprite.rotation);
 
     ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
@@ -1959,11 +1965,11 @@ function setup() {
     } else if (shipData.combatStrategy === 'standoff') {
       // === STANDOFF STRATEGY ===
       // Focus on managing range between attacker and target near maximum weapon range while shooting as much as possible.
-      // Immediately turn and shoot with shot leading.
+      // Immediately turn and shoot with shot leading, beginning to fire at 1.5x max weapon range.
       // Apply forward thrust if distance starts to drift out of range, just enough to get back in range.
       // Lateral drift is preserved to naturally orbit and maintain range.
       // Ships with reversible thrusters use reverse thrust to tweak range and relative motion to stay near maximum range.
-      aimAndShoot(ship, target);
+      aimAndShoot(ship, target, 1.5);
 
       const targetMaxRange = weaponRange * 0.92;
       const targetMinRange = weaponRange * 0.72;
