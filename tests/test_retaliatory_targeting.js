@@ -447,4 +447,42 @@ handleShipHit(shipA, selfProj, [shipA]);
 assert.strictEqual(shipA.data.combatTarget, oldTarget, 'Must not target self');
 console.log('✓ Safeguards prevent targeting destroyed ships or self');
 
+console.log('--- 8. Testing Retreat Hit Behavior: Partial vs Full Shield Recovery ---');
+const retreatShip = buildShip(null, null, redPaint);
+const enemyAttacker = buildShip(null, null, bluePaint);
+retreatShip.data.shield = 4.0;
+retreatShip.data.maxShield = 10.0;
+retreatShip.data.isRetreating = true;
+retreatShip.data.aiState = 'RETREAT';
+retreatShip.data.combatTarget = null;
+
+const projHit1 = {
+  particle: { x: 500, y: 500, rotation: 0 },
+  sprite: { x: 500, y: 500, rotation: 0 },
+  container: null,
+  vx: 0,
+  vy: 0,
+  shipId: enemyAttacker.data.id,
+  parentShip: enemyAttacker,
+  damage: 1,
+};
+
+// Hit before shields recover -> continues retreating
+handleShipHit(retreatShip, projHit1, [retreatShip, enemyAttacker]);
+assert.strictEqual(retreatShip.data.isRetreating, true, 'Ship hit before shields recover must continue retreating');
+assert.strictEqual(retreatShip.data.aiState, 'RETREAT', 'AI state must remain RETREAT');
+assert.strictEqual(retreatShip.data.combatTarget, null, 'Must not switch target before shields recover');
+
+// Fully recover shields (10.0 / 10.0) -> still retreating if not hit
+retreatShip.data.shield = 10.0;
+retreatShip.data.retreatShieldsRecovered = true;
+assert.strictEqual(retreatShip.data.isRetreating, true, 'Ship remains in retreat until hit or rendezvous');
+
+// Hit after shields recover -> switches to fight whoever hit it
+handleShipHit(retreatShip, projHit1, [retreatShip, enemyAttacker]);
+assert.strictEqual(retreatShip.data.isRetreating, false, 'Ship hit after full shield recovery must exit retreat');
+assert.strictEqual(retreatShip.data.aiState, 'COMBAT', 'AI state must switch to COMBAT');
+assert.strictEqual(retreatShip.data.combatTarget, enemyAttacker, 'Must switch to fight whoever hit it');
+console.log('✓ Retreating ship continues retreating if hit before shields recover, and switches to fight if hit after shields recover');
+
 console.log('\nALL RETALIATORY TARGETING TESTS PASSED! 🎯💥');

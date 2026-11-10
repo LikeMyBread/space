@@ -400,6 +400,65 @@ function runTests() {
   assert.strictEqual(greenFollower.data.combatTarget, enemyShip, 'Follower must target nearest hostile ship upon rendezvous');
   console.log("✓ Follower re-engages, clears retreat, and attacks nearest enemy once within 2x max weapon range of leader");
 
+  // --- Part 6: Retreat Hit Behavior with Partially and Fully Recovered Shields ---
+  console.log("\n--- 6. Testing Retreat Hit Behavior: Partial vs Full Shield Recovery ---");
+  {
+    const blueLeader = buildShip(null, null, bluePaint);
+    const blueFollower = buildShip(null, null, bluePaint);
+    const hostileA = buildShip(null, null, redPaint);
+    const hostileB = buildShip(null, null, redPaint);
+
+    blueLeader.sprite.position.set(100, 100);
+    blueFollower.sprite.position.set(1000, 100); // 900px away from leader
+    hostileA.sprite.position.set(800, 300);
+    hostileB.sprite.position.set(600, 300);
+
+    // Trigger retreat on blueFollower
+    blueFollower.data.shield = 2.0; // < 25% of 10
+    blueFollower.data.maxShield = 10.0;
+    blueFollower.data.isRetreating = false;
+    blueFollower.data.combatTarget = null;
+
+    const fleetCombatants = [blueLeader, blueFollower, hostileA, hostileB];
+    updateNpcCombat(blueFollower, 1, 1/60, fleetCombatants);
+    assert.strictEqual(blueFollower.data.isRetreating, true, 'Follower should be in retreat');
+    assert.strictEqual(blueFollower.data.aiState, 'RETREAT', 'aiState should be RETREAT');
+
+    // Case A: Hit while shields are still recovering (e.g. at 5.0 / 10.0) -> must continue retreating
+    blueFollower.data.shield = 5.0; // partially recovered, not full
+    const projFromHostileA = {
+      shipId: hostileA.data.id,
+      parentShip: hostileA,
+      damage: 1,
+    };
+
+    handleShipHit(blueFollower, projFromHostileA, fleetCombatants);
+    assert.strictEqual(blueFollower.data.isRetreating, true, 'Follower hit before full recovery must continue retreating');
+    assert.strictEqual(blueFollower.data.aiState, 'RETREAT', 'Follower aiState must remain RETREAT');
+    assert.strictEqual(blueFollower.data.combatTarget, null, 'Follower must not switch to fight attacker before shields recover');
+    console.log("✓ Follower hit before shields have fully recovered continues retreating toward leader");
+
+    // Case B: Shields fully recover (10.0 / 10.0), no hit yet -> still flies to leader
+    blueFollower.data.shield = 10.0;
+    updateNpcCombat(blueFollower, 1, 1/60, fleetCombatants);
+    assert.strictEqual(blueFollower.data.isRetreating, true, 'Follower with fully recovered shields must still fly to leader if not hit');
+    assert.strictEqual(blueFollower.data.strategySubState, 'TO LEADER', 'Follower substate must be TO LEADER');
+    console.log("✓ Follower with fully recovered shields continues flying to its leader while unprovoked");
+
+    // Case C: Hit on the way after shields have fully recovered -> switches to fight whoever hit it
+    const projFromHostileB = {
+      shipId: hostileB.data.id,
+      parentShip: hostileB,
+      damage: 1,
+    };
+
+    handleShipHit(blueFollower, projFromHostileB, fleetCombatants);
+    assert.strictEqual(blueFollower.data.isRetreating, false, 'Follower hit after full recovery must exit retreat');
+    assert.strictEqual(blueFollower.data.aiState, 'COMBAT', 'aiState must switch to COMBAT');
+    assert.strictEqual(blueFollower.data.combatTarget, hostileB, 'Follower must switch to fight hostile B (the ship that hit it)');
+    console.log("✓ Follower hit after full shield recovery switches to fight whoever hit it instead of continuing to retreat");
+  }
+
   console.log("\nALL FLEETS & RETREAT TESTS PASSED SUCCESSFULLY! 🚀🛡️");
 }
 

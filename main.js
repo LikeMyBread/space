@@ -1278,6 +1278,9 @@ function setup() {
         const rate = (s.data.shieldRegenRate != null) ? s.data.shieldRegenRate : DEFAULT_SHIELD_REGEN_RATE;
         s.data.shield = Math.min(maxS, s.data.shield + dtSec * rate);
       }
+      if (s.data.isRetreating && s.data.shield >= maxS - 0.01) {
+        s.data.retreatShieldsRecovered = true;
+      }
     }
   }
 
@@ -1742,6 +1745,11 @@ function setup() {
     }
     if (!shipData.isRetreating && !shipData.justRendezvoused && shipData.shield < maxShield * 0.25) {
       shipData.isRetreating = true;
+      shipData.retreatShieldsRecovered = false;
+    }
+
+    if (shipData.isRetreating && shipData.shield >= maxShield - 0.01) {
+      shipData.retreatShieldsRecovered = true;
     }
 
     const leader = getFleetLeader(ship, allCombatants);
@@ -1760,6 +1768,7 @@ function setup() {
         // they should then target the nearest enemy ship and set off to attack it.
         if (distToLeader <= rendezvousThreshold) {
           shipData.isRetreating = false;
+          shipData.retreatShieldsRecovered = false;
           shipData.justRendezvoused = true;
           shipData.aiState = 'COMBAT';
           shipData.combatTarget = findNearestHostile(ship, allCombatants);
@@ -1795,6 +1804,7 @@ function setup() {
         // Leader or lone ship: flee away from all hostile ships until shields fully recovered
         if (shipData.shield >= maxShield - 0.01) {
           shipData.isRetreating = false;
+          shipData.retreatShieldsRecovered = false;
           shipData.aiState = 'COMBAT';
           shipData.combatTarget = findNearestHostile(ship, allCombatants);
         } else {
@@ -2354,13 +2364,35 @@ function setup() {
     }
 
     if (!targetShip.data.isDerelict && !targetShip.data.isDisabled) {
-      targetShip.data.combatTarget = parentShip;
-      targetShip.data.lastAttacker = parentShip;
-      if (isFighting && !targetShip.data.combatStrategy) {
-        targetShip.data.combatStrategy = getRandomCombatStrategy();
-      }
-      if (isFighting && targetShip.data.aiState !== 'RETREAT') {
-        targetShip.data.aiState = 'COMBAT';
+      const maxShield = targetShip.data.maxShield || 10;
+      const shieldsFullyRecovered = targetShip.data.retreatShieldsRecovered || (targetShip.data.shield >= maxShield - 0.01);
+
+      if (targetShip.data.isRetreating) {
+        if (shieldsFullyRecovered) {
+          // Once shields have fully recovered, the ship will still fly to its leader (assuming there is one),
+          // but if it's hit on the way it will switch to fight whoever hit it instead of continuing to retreat.
+          targetShip.data.isRetreating = false;
+          targetShip.data.retreatShieldsRecovered = false;
+          targetShip.data.justRendezvoused = true;
+          targetShip.data.aiState = 'COMBAT';
+          targetShip.data.combatTarget = parentShip;
+          targetShip.data.lastAttacker = parentShip;
+          if (isFighting && !targetShip.data.combatStrategy) {
+            targetShip.data.combatStrategy = getRandomCombatStrategy();
+          }
+        } else {
+          // If a ship is hit before its shields have recovered while retreating it will continue retreating.
+          return;
+        }
+      } else {
+        targetShip.data.combatTarget = parentShip;
+        targetShip.data.lastAttacker = parentShip;
+        if (isFighting && !targetShip.data.combatStrategy) {
+          targetShip.data.combatStrategy = getRandomCombatStrategy();
+        }
+        if (isFighting && targetShip.data.aiState !== 'RETREAT') {
+          targetShip.data.aiState = 'COMBAT';
+        }
       }
     }
   }
