@@ -241,7 +241,7 @@ const WEAPONS_DATA = {
       speed: 100, // px/s (doubled from 50 px/s)
       rotation: 0.1, // spin speed in rad/tick
       rotationSpeed: 0.1,
-      lifetime: 1.75, // seconds (cut in half from 3.5s; range is 175px at 100 px/s)
+      lifetime: 0.875, // seconds (cut in half again from 1.75s; range is 87.5px at 100 px/s)
     }
   }
 };
@@ -767,7 +767,7 @@ function formFleet(leader, followerShips, spacing = FORMATION_DISTANCE) {
 function getShipMaxWeaponRange(ship) {
   const defaultRange = (typeof WEAPONS_DATA !== 'undefined' && WEAPONS_DATA.light_blaster && WEAPONS_DATA.light_blaster.projectile)
     ? WEAPONS_DATA.light_blaster.projectile.speed * WEAPONS_DATA.light_blaster.projectile.lifetime
-    : 175;
+    : 87.5;
   if (!ship || !ship.data) return defaultRange;
   let maxRange = 0;
   if (ship.data.weapons && ship.data.weapons.length > 0) {
