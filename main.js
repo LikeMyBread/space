@@ -1600,13 +1600,17 @@ function setup() {
     return nearestTarget;
   }
 
-  function getStrategyDisplayName(strategy) {
+  function getStrategyDisplayName(strategy, subState) {
     if (!strategy) return '';
     const s = String(strategy).toLowerCase().replace(/[^a-z]/g, '');
-    if (s.includes('turn')) return 'TURN FIGHT';
-    if (s.includes('joust')) return 'JOUSTING';
-    if (s.includes('standoff')) return 'STANDOFF';
-    return String(strategy).toUpperCase();
+    let base = String(strategy).toUpperCase();
+    if (s.includes('turn')) base = 'TURN FIGHT';
+    else if (s.includes('joust')) base = 'JOUSTING';
+    else if (s.includes('standoff')) base = 'STANDOFF';
+    if (subState) {
+      return `${base}: ${subState.toUpperCase()}`;
+    }
+    return base;
   }
 
   function getLeadSolution(shooter, target, rangeMultiplier = 1.0) {
@@ -1764,6 +1768,7 @@ function setup() {
           }
         } else {
           shipData.aiState = 'RETREAT';
+          shipData.strategySubState = 'TO LEADER';
           const targetAngle = Math.PI / 2 + Math.atan2(ldy, ldx);
           const angleDiff = normalizeAngle(targetAngle - shipSprite.rotation);
           shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
@@ -1794,6 +1799,7 @@ function setup() {
           shipData.combatTarget = findNearestHostile(ship, allCombatants);
         } else {
           shipData.aiState = 'RETREAT';
+          shipData.strategySubState = 'FLEEING';
           const myColor = shipData.paint ? shipData.paint.name : null;
           let fleeX = 0;
           let fleeY = 0;
@@ -1914,6 +1920,7 @@ function setup() {
 
       if (inRearPosition) {
         // In position behind target: maintain position and shoot
+        shipData.strategySubState = 'IN POCKET';
         aimAndShoot(ship, target);
 
         const fwdX = Math.sin(shipSprite.rotation);
@@ -1943,11 +1950,13 @@ function setup() {
         // If already on course (velocity error is small), resume shooting while coasting on course
         const onCourse = dvMag <= 8;
         if (onCourse && dist <= weaponRange) {
+          shipData.strategySubState = 'COASTING ON COURSE';
           aimAndShoot(ship, target);
           if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         } else {
           // Turn and thrust to put itself on course that passes through the cone
+          shipData.strategySubState = 'MANEUVERING TO REAR';
           const courseAngle = Math.atan2(dvX, -dvY);
           const angleDiff = normalizeAngle(courseAngle - shipSprite.rotation);
           shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
@@ -1997,9 +2006,6 @@ function setup() {
       const relVy = shipData.vy - target.data.vy;
       const closingSpeed = losX * relVx + losY * relVy;
 
-      // Speed of target moving away from shooter along line of sight
-      const targetAwaySpeed = losX * (target.data.vx || 0) + losY * (target.data.vy || 0);
-
       // Account for velocity gained by projectiles when firing forward at speed
       const baseWeaponRange = weaponSpeed * weaponLifetime;
       const forwardSpeed = Math.max(0, shipData.vx * fwdX + shipData.vy * fwdY, (shipData.vx || 0) * losX + (shipData.vy || 0) * losY);
@@ -2012,19 +2018,26 @@ function setup() {
       const targetMaxRange = Math.max(baseWeaponRange * 0.92, effectiveWeaponRange * 0.92);
       const targetMinRange = baseWeaponRange * 0.72;
 
-      const isTargetFleeing = (targetAwaySpeed > 10 && closingSpeed < 5) || closingSpeed < -5;
-      const isTooClose = dist < targetMinRange;
+      if (dist > targetMaxRange) {
+        // Distance is drifting out of range or already out of range:
+        // Apply forward thrust just enough to get back in range
+        shipData.strategySubState = 'CLOSING';
+        const excessDist = dist - targetMaxRange;
+        const desiredClosingSpeed = Math.min(maxSpeed * 0.8, Math.max(15, excessDist * 0.6));
 
-      if (dist > targetMaxRange || (isTargetFleeing && !isTooClose)) {
-        // Target is fleeing / opening distance or beyond max range:
-        // Aggressively pursue with forward thrust to keep up and stay in weapon range
-        if (dotFwdLOS > 0.2) {
-          const step = dvMax;
-          const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
-          shipData.vx = clamped.vx;
-          shipData.vy = clamped.vy;
-          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
-          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        if (closingSpeed < desiredClosingSpeed && dotFwdLOS > 0.4) {
+          const neededDv = (desiredClosingSpeed - closingSpeed) / Math.max(0.1, dotFwdLOS);
+          if (neededDv > 0.5) {
+            const step = Math.min(dvMax, neededDv);
+            const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+            shipData.vx = clamped.vx;
+            shipData.vy = clamped.vy;
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          } else {
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          }
         } else {
           if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
@@ -2032,6 +2045,7 @@ function setup() {
       } else if (shipData.engine && shipData.engine.reversible) {
         if (dist < targetMinRange) {
           // Inside min range: back off with reverse thrust
+          shipData.strategySubState = 'BACKING OFF';
           const underDist = targetMinRange - dist;
           const desiredBackoffSpeed = Math.min(maxSpeed * 0.5, Math.max(10, underDist * 0.6));
           if (closingSpeed > -desiredBackoffSpeed && dotFwdLOS > 0.4) {
@@ -2053,6 +2067,7 @@ function setup() {
           }
         } else if (dist < targetMinRange + 15 && closingSpeed > 15 && dotFwdLOS > 0.4) {
           // Only arrest closing speed if close to targetMinRange and closing fast
+          shipData.strategySubState = 'BRAKING';
           const neededReverseDv = (closingSpeed - 0) / Math.max(0.1, dotFwdLOS);
           if (neededReverseDv > 0.5) {
             const step = Math.min(dvMax, neededReverseDv);
@@ -2066,12 +2081,14 @@ function setup() {
             if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           }
         } else {
+          shipData.strategySubState = 'HOLDING RANGE';
           if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         }
       } else {
         // Non-reversible ship in or under standoff range:
         // Do not forward thrust; allow lateral drift to maintain range and continue shooting
+        shipData.strategySubState = 'HOLDING RANGE';
         if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
         if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
       }
@@ -2087,6 +2104,7 @@ function setup() {
 
       if (inRange && !isSeparating) {
         // High speed inbound / passing run: turn and shoot with shot leading
+        shipData.strategySubState = 'ATTACK RUN';
         aimAndShoot(ship, target);
 
         // Keep speed up
@@ -2105,6 +2123,7 @@ function setup() {
         if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
       } else {
         // Out of range or separating: turn and thrust toward opponent for another high speed pass
+        shipData.strategySubState = 'EXTENDING';
         const desiredVx = (dx / Math.max(1, dist)) * maxSpeed;
         const desiredVy = (dy / Math.max(1, dist)) * maxSpeed;
 
@@ -2977,11 +2996,16 @@ function setup() {
         targetStateVal.textContent = 'DISABLED';
         targetStateVal.style.color = '#f87171';
       } else if (targetShip.data.combatStrategy && (isFighting || targetShip.data.aiState === 'COMBAT' || targetShip.data.aiState === 'RETREAT')) {
-        const strat = getStrategyDisplayName(targetShip.data.combatStrategy);
+        const strat = getStrategyDisplayName(targetShip.data.combatStrategy, targetShip.data.strategySubState);
         targetStateVal.textContent = strat;
-        targetStateVal.style.color = '#38bdf8';
+        targetStateVal.style.color = targetShip.data.isRetreating ? '#fbbf24' : '#38bdf8';
       } else {
-        targetStateVal.textContent = targetShip.data.aiState || (targetShip.data.isDerelict ? 'DERELICT' : 'IDLE');
+        const baseState = targetShip.data.aiState || (targetShip.data.isDerelict ? 'DERELICT' : 'IDLE');
+        if (targetShip.data.strategySubState && baseState !== targetShip.data.strategySubState) {
+          targetStateVal.textContent = `${baseState}: ${targetShip.data.strategySubState}`;
+        } else {
+          targetStateVal.textContent = baseState;
+        }
         targetStateVal.style.color = '#e2e8f0';
       }
     }

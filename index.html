@@ -355,6 +355,14 @@
       max-width: 75px;
     }
 
+    #target-faction-val {
+      max-width: 155px;
+    }
+
+    #target-state-val {
+      max-width: 175px;
+    }
+
     .radar-legend {
       width: 100%;
       display: flex;
@@ -710,14 +718,14 @@
             <span id="target-hull-val" class="target-val">Boat</span>
           </div>
           <div class="target-info-row">
-            <span class="target-label">AFFIL:</span>
-            <span id="target-faction-val" class="target-val">Solaris Guild</span>
-          </div>
-          <div class="target-info-row">
             <span class="target-label">DIST:</span>
             <span id="target-dist-val" class="target-val">297m</span>
           </div>
-          <div class="target-info-row">
+          <div class="target-info-row" style="grid-column: 1 / -1;">
+            <span class="target-label">AFFIL:</span>
+            <span id="target-faction-val" class="target-val">Solaris Guild</span>
+          </div>
+          <div class="target-info-row" style="grid-column: 1 / -1;">
             <span class="target-label">STATE:</span>
             <span id="target-state-val" class="target-val">DERELICT</span>
           </div>

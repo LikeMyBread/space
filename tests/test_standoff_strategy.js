@@ -461,40 +461,120 @@ assert.strictEqual(chasingAttacker.data.engineReverseSprite.visible, false, 'Shi
 assert(chasingAttacker.data.weapons[0].lastFired > beforeChaseFire, 'Ship chasing at 80px must open fire');
 console.log('✓ Standoff min range remains stable at 63px and opens fire without reverse thruster jitter');
 
-console.log('--- 12. Testing Aggressive Pursuit of Fleeing Target & Counter-Fire on Turnaround ---');
-// Attacker and target have identical ships and engines
-const pursueAttacker = buildShip(null, revEngine);
-pursueAttacker.data.combatStrategy = 'standoff';
-pursueAttacker.data.paint = { name: 'red', hex: '#ef4444' };
-pursueAttacker.sprite.position.set(500, 500);
-pursueAttacker.sprite.rotation = 0; // Facing north
-pursueAttacker.data.vx = 0;
-pursueAttacker.data.vy = 0;
+console.log('--- 12. Testing Strategy Sub-State Tracking & UI Display ---');
 
-const fleeTarget = buildShip(null, revEngine);
-fleeTarget.data.paint = { name: 'blue', hex: '#3b82f6' };
-fleeTarget.sprite.position.set(500, 425); // 75px ahead (inside sweet spot)
-fleeTarget.sprite.rotation = 0; // Fleeing north
-fleeTarget.data.vx = 0;
-fleeTarget.data.vy = -fleeTarget.data.maxSpeed; // Moving away at max speed
-pursueAttacker.data.combatTarget = fleeTarget;
+// 1. Formatting via getStrategyDisplayName
+assert.strictEqual(getStrategyDisplayName('standoff', 'CLOSING'), 'STANDOFF: CLOSING');
+assert.strictEqual(getStrategyDisplayName('standoff', 'HOLDING RANGE'), 'STANDOFF: HOLDING RANGE');
+assert.strictEqual(getStrategyDisplayName('standoff', 'BACKING OFF'), 'STANDOFF: BACKING OFF');
+assert.strictEqual(getStrategyDisplayName('standoff', 'BRAKING'), 'STANDOFF: BRAKING');
+assert.strictEqual(getStrategyDisplayName('turn_fight', 'IN POCKET'), 'TURN FIGHT: IN POCKET');
+assert.strictEqual(getStrategyDisplayName('turn_fight', 'COASTING ON COURSE'), 'TURN FIGHT: COASTING ON COURSE');
+assert.strictEqual(getStrategyDisplayName('turn_fight', 'MANEUVERING TO REAR'), 'TURN FIGHT: MANEUVERING TO REAR');
+assert.strictEqual(getStrategyDisplayName('joust', 'ATTACK RUN'), 'JOUSTING: ATTACK RUN');
+assert.strictEqual(getStrategyDisplayName('joust', 'EXTENDING'), 'JOUSTING: EXTENDING');
+assert.strictEqual(getStrategyDisplayName('standoff'), 'STANDOFF');
+console.log('✓ getStrategyDisplayName formats sub-states correctly and preserves fallback format');
 
-// 1. When target is fleeing away, attacker must aggressively ignite forward thrust even inside targetMaxRange
-updateNpcCombat(pursueAttacker, 1, 1/60, [pursueAttacker, fleeTarget]);
-assert.strictEqual(pursueAttacker.data.engineLitSprite.visible, true, 'Attacker must aggressively burn forward thrust when target is fleeing');
-assert.strictEqual(pursueAttacker.data.engineReverseSprite.visible, false, 'Attacker must not reverse when chasing fleeing target');
-assert(pursueAttacker.data.vy < 0, 'Attacker must accelerate forward toward fleeing target');
-console.log('✓ Standoff ship aggressively burns forward thrusters when pursuing a fleeing target');
+// 2. Dynamic strategySubState assignment in updateNpcCombat
+const subStateAttacker = buildShip(null, revEngine);
+subStateAttacker.data.combatStrategy = 'standoff';
+subStateAttacker.data.paint = { name: 'red', hex: '#ef4444' };
+subStateAttacker.sprite.position.set(500, 500);
+subStateAttacker.sprite.rotation = 0; // Facing north
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = 0;
 
-// 2. Fleeing target turns around (facing south) to engage and shoot backwards while drifting
-fleeTarget.sprite.rotation = Math.PI; // Facing south toward attacker
-pursueAttacker.data.weapons[0].lastFired = -Infinity;
-pursueAttacker.data.weaponGroups = null;
-const beforeCounterFire = pursueAttacker.data.weapons[0].lastFired;
+const subStateTarget = buildShip(null, revEngine);
+subStateTarget.data.paint = { name: 'blue', hex: '#3b82f6' };
+subStateTarget.sprite.position.set(500, 200); // 300px away (> targetMaxRange)
+subStateAttacker.data.combatTarget = subStateTarget;
 
-updateNpcCombat(pursueAttacker, 1, 1/60, [pursueAttacker, fleeTarget]);
-assert(pursueAttacker.data.weapons[0].lastFired > beforeCounterFire, 'Standoff ship must immediately return fire when turnaround target engages');
-assert.strictEqual(pursueAttacker.data.engineReverseSprite.visible, false, 'Standoff ship must not slam reverse brakes during combat engagement at 75px');
-console.log('✓ Standoff ship immediately returns fire and maintains attack pressure without premature reverse braking');
+// A. Beyond max range -> CLOSING
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'CLOSING', 'Standoff beyond max range must be CLOSING');
+
+// B. Sweet spot (75px away, targetMaxRange ~87.5px, targetMinRange ~63px) -> HOLDING RANGE
+subStateTarget.sprite.position.set(500, 425);
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = 0;
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff in sweet spot must be HOLDING RANGE');
+
+// C. Inside min range (30px away < targetMinRange) -> BACKING OFF
+subStateTarget.sprite.position.set(500, 470);
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = 0;
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'BACKING OFF', 'Standoff inside min range with reversible engine must be BACKING OFF');
+
+// D. Fast closing speed near min range boundary -> BRAKING
+subStateTarget.sprite.position.set(500, 432); // ~68px away (close to targetMinRange + 15)
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = -35; // Closing fast at 35px/s along line of sight
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'BRAKING', 'Standoff closing fast near min range boundary must be BRAKING');
+
+// E. Retreating
+subStateAttacker.data.shield = 0;
+subStateAttacker.data.aiState = 'RETREAT';
+subStateAttacker.data.isRetreating = true;
+// With leader
+const redLeader = buildShip();
+redLeader.data.id = 1;
+redLeader.data.paint = { name: 'red', hex: '#ef4444' };
+redLeader.sprite.position.set(500, 800);
+subStateAttacker.data.id = 50;
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, redLeader, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'TO LEADER', 'Retreating ship with fleet leader must have substate TO LEADER');
+
+// Without leader
+const lonelyAttacker = buildShip();
+lonelyAttacker.data.id = 99;
+lonelyAttacker.data.paint = { name: 'purple', hex: '#a855f7' };
+lonelyAttacker.data.shield = 0;
+lonelyAttacker.data.aiState = 'RETREAT';
+lonelyAttacker.data.isRetreating = true;
+lonelyAttacker.sprite.position.set(500, 500);
+updateNpcCombat(lonelyAttacker, 1, 1/60, [lonelyAttacker, subStateTarget]);
+assert.strictEqual(lonelyAttacker.data.strategySubState, 'FLEEING', 'Retreating ship without fleet leader must have substate FLEEING');
+
+console.log('✓ Dynamic strategySubState assigns CLOSING, HOLDING RANGE, BACKING OFF, BRAKING, TO LEADER, and FLEEING accurately');
+
+// 3. Target Monitor UI updates
+const targetStateEl = domMap.get('target-state-val');
+assert(targetStateEl, 'target-state-val element must exist in DOM');
+
+// Select a target ship to display
+const monitoredShip = (global.window.ships && global.window.ships.length > 0) ? global.window.ships[0] : buildShip();
+if (global.window.ships && global.window.ships.length > 0) {
+  while (global.window.getCurrentTarget() !== monitoredShip) {
+    global.window.cycleTarget();
+  }
+}
+monitoredShip.data.isDisabled = false;
+monitoredShip.data.isDestroyed = false;
+monitoredShip.data.aiState = 'COMBAT';
+monitoredShip.data.combatStrategy = 'standoff';
+monitoredShip.data.strategySubState = 'CLOSING';
+
+global.window.isFighting = true;
+global.window.drawTargetView();
+assert.strictEqual(targetStateEl.textContent, 'STANDOFF: CLOSING', 'Target monitor must show STANDOFF: CLOSING');
+
+monitoredShip.data.strategySubState = 'HOLDING RANGE';
+global.window.drawTargetView();
+assert.strictEqual(targetStateEl.textContent, 'STANDOFF: HOLDING RANGE', 'Target monitor must show STANDOFF: HOLDING RANGE');
+
+monitoredShip.data.strategySubState = 'BACKING OFF';
+global.window.drawTargetView();
+assert.strictEqual(targetStateEl.textContent, 'STANDOFF: BACKING OFF', 'Target monitor must show STANDOFF: BACKING OFF');
+
+// Disabled priority
+monitoredShip.data.isDisabled = true;
+global.window.drawTargetView();
+assert.strictEqual(targetStateEl.textContent, 'DISABLED', 'Target monitor must show DISABLED when disabled');
+
+console.log('✓ Target monitor STATE element displays current combat strategy and substate (e.g. STANDOFF: HOLDING RANGE)');
 
 console.log('\nALL STANDOFF STRATEGY TESTS PASSED SUCCESSFULLY! 🎯🛡️');
