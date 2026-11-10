@@ -53,6 +53,7 @@ const TURN_RATE = 0.04; // rad/frame
 const ACCEL_LIMIT = 5; // seconds
 const FORMATION_DISTANCE = 100; // px
 const DISABLED_ARMOR_THRESHOLD = 0.2; // 20% armor threshold for disabling ships
+const DEFAULT_SHIELD_REGEN_RATE = 0.5; // points per second (cut in half from 1.0)
 const PIVOT_SIZE = 3; // px - size of pivot highlight for high-res visibility
 const PIVOT_HALF = Math.floor(PIVOT_SIZE / 2);
 let showHitboxes = false;
@@ -240,7 +241,7 @@ const WEAPONS_DATA = {
       speed: 100, // px/s (doubled from 50 px/s)
       rotation: 0.1, // spin speed in rad/tick
       rotationSpeed: 0.1,
-      lifetime: 3.5, // seconds (extended range to 350px for long-range combat)
+      lifetime: 1.75, // seconds (cut in half from 3.5s; range is 175px at 100 px/s)
     }
   }
 };
@@ -633,6 +634,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     stoppingDistance,
     shield: 10,
     maxShield: 10,
+    shieldRegenRate: DEFAULT_SHIELD_REGEN_RATE,
     hullHealth: 10,
     maxHullHealth: 10,
     armor: 10,
@@ -763,8 +765,11 @@ function formFleet(leader, followerShips, spacing = FORMATION_DISTANCE) {
 }
 
 function getShipMaxWeaponRange(ship) {
-  if (!ship || !ship.data) return 350;
-  let maxRange = 350;
+  const defaultRange = (typeof WEAPONS_DATA !== 'undefined' && WEAPONS_DATA.light_blaster && WEAPONS_DATA.light_blaster.projectile)
+    ? WEAPONS_DATA.light_blaster.projectile.speed * WEAPONS_DATA.light_blaster.projectile.lifetime
+    : 175;
+  if (!ship || !ship.data) return defaultRange;
+  let maxRange = 0;
   if (ship.data.weapons && ship.data.weapons.length > 0) {
     for (let i = 0; i < ship.data.weapons.length; i++) {
       const slot = ship.data.weapons[i];
@@ -774,7 +779,7 @@ function getShipMaxWeaponRange(ship) {
       }
     }
   }
-  return maxRange;
+  return maxRange > 0 ? maxRange : defaultRange;
 }
 
 function getFleetLeader(ship, allShipsList) {
@@ -1266,7 +1271,8 @@ function setup() {
       }
 
       if (s.data.shield < maxS) {
-        s.data.shield = Math.min(maxS, s.data.shield + dtSec * 1.0);
+        const rate = (s.data.shieldRegenRate != null) ? s.data.shieldRegenRate : DEFAULT_SHIELD_REGEN_RATE;
+        s.data.shield = Math.min(maxS, s.data.shield + dtSec * rate);
       }
     }
   }
@@ -2514,6 +2520,8 @@ function setup() {
     window.organizeFleets = organizeFleets;
     window.getFleetLeader = getFleetLeader;
     window.getShipMaxWeaponRange = getShipMaxWeaponRange;
+    window.DEFAULT_SHIELD_REGEN_RATE = DEFAULT_SHIELD_REGEN_RATE;
+    window.regenerateShields = regenerateShields;
   }
 
   if (targetIdBadge) {
@@ -3095,7 +3103,7 @@ function setup() {
     // Update active projectiles
     const dtSec = delta / 60;
 
-    // Regenerate shields for all active ships at 1 point per second (hulls do not regenerate)
+    // Regenerate shields for all active ships at default rate of 0.5 points per second (hulls do not regenerate)
     regenerateShields(dtSec);
 
     // Update active projectiles and check collisions against active ships
