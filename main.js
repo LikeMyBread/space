@@ -770,11 +770,15 @@ function getShipMaxWeaponRange(ship) {
     : 87.5;
   if (!ship || !ship.data) return defaultRange;
   let maxRange = 0;
+  const forwardSpeed = (ship.sprite && ship.data)
+    ? Math.max(0, (ship.data.vx || 0) * Math.sin(ship.sprite.rotation) - (ship.data.vy || 0) * Math.cos(ship.sprite.rotation))
+    : 0;
   if (ship.data.weapons && ship.data.weapons.length > 0) {
     for (let i = 0; i < ship.data.weapons.length; i++) {
       const slot = ship.data.weapons[i];
       if (slot && slot.weapon && slot.weapon.projectile) {
-        const r = slot.weapon.projectile.speed * slot.weapon.projectile.lifetime;
+        const effectiveSpeed = slot.weapon.projectile.speed + forwardSpeed;
+        const r = effectiveSpeed * slot.weapon.projectile.lifetime;
         if (r > maxRange) maxRange = r;
       }
     }
@@ -1614,7 +1618,12 @@ function setup() {
     const mult = (rangeMultiplier !== 1.0)
       ? rangeMultiplier
       : (shooter.data && shooter.data.combatStrategy === 'standoff' ? 1.5 : 1.0);
-    const maxRange = speed * lifetime * mult;
+
+    const fwdX = Math.sin(shooter.sprite.rotation);
+    const fwdY = -Math.cos(shooter.sprite.rotation);
+    const forwardSpeed = Math.max(0, (shooter.data.vx || 0) * fwdX + (shooter.data.vy || 0) * fwdY);
+    const effectiveSpeed = speed + forwardSpeed;
+    const maxRange = effectiveSpeed * lifetime * mult;
 
     const dx = target.sprite.x - shooter.sprite.x;
     const dy = target.sprite.y - shooter.sprite.y;
@@ -1969,11 +1978,6 @@ function setup() {
       // Apply forward thrust if distance starts to drift out of range, just enough to get back in range.
       // Lateral drift is preserved to naturally orbit and maintain range.
       // Ships with reversible thrusters use reverse thrust to tweak range and relative motion to stay near maximum range.
-      aimAndShoot(ship, target, 1.5);
-
-      const targetMaxRange = weaponRange * 0.92;
-      const targetMinRange = weaponRange * 0.72;
-
       const fwdX = Math.sin(shipSprite.rotation);
       const fwdY = -Math.cos(shipSprite.rotation);
       const losX = dx / Math.max(1, dist);
@@ -1983,6 +1987,17 @@ function setup() {
       const relVx = shipData.vx - target.data.vx;
       const relVy = shipData.vy - target.data.vy;
       const closingSpeed = losX * relVx + losY * relVy;
+
+      // Account for velocity gained by projectiles when firing forward at speed
+      const forwardSpeed = Math.max(0, shipData.vx * fwdX + shipData.vy * fwdY);
+      const forwardSpeedBoost = Math.max(forwardSpeed, closingSpeed || 0);
+      const effectiveWeaponSpeed = weaponSpeed + forwardSpeedBoost;
+      const effectiveWeaponRange = effectiveWeaponSpeed * weaponLifetime;
+
+      aimAndShoot(ship, target, 1.5);
+
+      const targetMaxRange = effectiveWeaponRange * 0.92;
+      const targetMinRange = effectiveWeaponRange * 0.72;
 
       if (dist > targetMaxRange) {
         // Distance is drifting out of range or already out of range:
