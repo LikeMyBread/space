@@ -253,7 +253,7 @@ const HULLS_DATA = [
     pivot: {x: 15.5, y: 16.5},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Anvil.png",
-    hullRadius: 6,
+    hullRadius: 7,
     shieldRadius: 20,
     hardpoints: [
       {
@@ -266,10 +266,10 @@ const HULLS_DATA = [
   {
     name: 'Avocado',
     mass: 20000, // kg
-    pivot: {x: 15.5, y: 18},
+    pivot: {x: 15.5, y: 20},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Avocado.png",
-    hullRadius: 6,
+    hullRadius: 7,
     shieldRadius: 20,
     hardpoints: [
       {
@@ -282,10 +282,10 @@ const HULLS_DATA = [
   {
     name: 'Boat',
     mass: 20000, // kg
-    pivot: {x: 16.5, y: 16},
+    pivot: {x: 17.5, y: 17},
     engine_mount: {x: 16, y: 28},
     img: "img/ships/Boat.png",
-    hullRadius: 6,
+    hullRadius: 8,
     shieldRadius: 20,
     hardpoints: [
       {
@@ -303,10 +303,10 @@ const HULLS_DATA = [
   {
     name: 'Crab',
     mass: 20000, // kg
-    pivot: {x: 15.5, y: 18},
+    pivot: {x: 16.5, y: 18},
     engine_mount: {x: 15, y: 25},
     img: "img/ships/Crab.png",
-    hullRadius: 6,
+    hullRadius: 7,
     shieldRadius: 20,
     hardpoints: [
       {
@@ -324,7 +324,7 @@ const HULLS_DATA = [
   {
     name: 'Delta',
     mass: 20000, // kg
-    pivot: {x: 14.5, y: 17},
+    pivot: {x: 15.5, y: 18},
     engine_mount: {x: 14, y: 25},
     img: "img/ships/Delta.png",
     hullRadius: 6,
@@ -340,10 +340,10 @@ const HULLS_DATA = [
   {
     name: 'Hammer',
     mass: 20000, // kg
-    pivot: {x: 15.5, y: 14},
+    pivot: {x: 16.5, y: 15},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Hammer.png",
-    hullRadius: 6,
+    hullRadius: 8,
     shieldRadius: 20,
     hardpoints: [
       {
@@ -356,10 +356,10 @@ const HULLS_DATA = [
   {
     name: 'Protogon',
     mass: 20000, // kg
-    pivot: {x: 10, y: 12},
+    pivot: {x: 11, y: 13},
     engine_mount: {x: 9, y: 20},
     img: "img/ships/Protogon.png",
-    hullRadius: 6,
+    hullRadius: 7,
     shieldRadius: 20,
     hardpoints: [
       {
@@ -375,7 +375,7 @@ const HULLS_DATA = [
     pivot: {x: 15.5, y: 17},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Shadow.png",
-    hullRadius: 6,
+    hullRadius: 10,
     shieldRadius: 20,
     hardpoints: [
       {
@@ -412,7 +412,7 @@ const HULLS_DATA = [
     pivot: {x: 15.5, y: 14},
     engine_mount: {x: 15, y: 23},
     img: "img/ships/Skate.png",
-    hullRadius: 6,
+    hullRadius: 7,
     shieldRadius: 20,
     hardpoints: [
       {

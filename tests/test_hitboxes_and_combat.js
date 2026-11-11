@@ -187,11 +187,23 @@ const { setup, HULLS_DATA, WEAPONS_DATA, buildShip, checkSpeed, projectiles, spa
 
 console.log('1. Testing HULLS_DATA hitbox definitions...');
 assert.strictEqual(HULLS_DATA.length, 10, 'Expected 10 hulls');
+const expectedHullRadii = {
+  Anvil: 7,
+  Avocado: 7,
+  Boat: 8,
+  Crab: 7,
+  Delta: 6,
+  Hammer: 8,
+  Protogon: 7,
+  Shadow: 10,
+  Shuttle: 6,
+  Skate: 7,
+};
 for (const hull of HULLS_DATA) {
-  assert.strictEqual(hull.hullRadius, 6, `${hull.name} hullRadius must be 6`);
+  assert.strictEqual(hull.hullRadius, expectedHullRadii[hull.name], `${hull.name} hullRadius must be ${expectedHullRadii[hull.name]}`);
   assert.strictEqual(hull.shieldRadius, 20, `${hull.name} shieldRadius must be 20`);
 }
-console.log('✓ All 10 hulls define hullRadius: 6 and shieldRadius: 20');
+console.log('✓ All 10 hulls define their specific hullRadius and shieldRadius: 20');
 
 console.log('2. Testing WEAPONS_DATA damage...');
 assert.strictEqual(WEAPONS_DATA.light_blaster.damage, 1, 'light_blaster damage must be 1');
@@ -515,5 +527,59 @@ assert.strictEqual(testNpc.data.isDestroyed, true, 'Ship must be marked isDestro
 assert.strictEqual(testNpc.sprite.destroyed, true, 'Ship sprite must be destroyed');
 assert(!global.window.getTargetableShips().includes(testNpc), 'Destroyed ship must not be in targetable ships');
 console.log('✓ Ship that reaches zero health is destroyed and deleted');
+
+console.log('12. Testing per-model hitbox collision differences (Shadow 10px vs Shuttle 6px)...');
+const shadowHull = HULLS_DATA.find(h => h.name === 'Shadow');
+const shuttleHull = HULLS_DATA.find(h => h.name === 'Shuttle');
+const shadowNpc = buildShip(shadowHull);
+shadowNpc.data.shield = 0;
+shadowNpc.sprite.position.set(400, 400);
+global.app.stage.addChild(shadowNpc.sprite);
+global.window.ships.push(shadowNpc);
+
+const shuttleNpc = buildShip(shuttleHull);
+shuttleNpc.data.shield = 0;
+shuttleNpc.sprite.position.set(600, 400);
+global.app.stage.addChild(shuttleNpc.sprite);
+global.window.ships.push(shuttleNpc);
+
+// Projectile 9px away from Shadow center: hits Shadow (radius 10)
+const projShadow = {
+  sprite: new PIXI.Sprite(),
+  vx: 0,
+  vy: 0,
+  rotation: 0,
+  rotationSpeed: 0,
+  shipId: 99999,
+  originTime: 1000,
+  lifetime: 1.0,
+  damage: 1,
+};
+projShadow.sprite.position.set(400, 409); // dist = 9px <= 10px
+global.app.stage.addChild(projShadow.sprite);
+projectiles.push(projShadow);
+
+// Projectile 9px away from Shuttle center: misses Shuttle (radius 6)
+const projShuttle = {
+  sprite: new PIXI.Sprite(),
+  vx: 0,
+  vy: 0,
+  rotation: 0,
+  rotationSpeed: 0,
+  shipId: 99999,
+  originTime: 1000,
+  lifetime: 1.0,
+  damage: 1,
+};
+projShuttle.sprite.position.set(600, 409); // dist = 9px > 6px
+global.app.stage.addChild(projShuttle.sprite);
+projectiles.push(projShuttle);
+
+gameLoopFn(0);
+assert.strictEqual(shadowNpc.data.hullHealth, 9, 'Shadow (10px radius) must be hit at 9px distance');
+assert.strictEqual(shuttleNpc.data.hullHealth, 10, 'Shuttle (6px radius) must NOT be hit at 9px distance');
+// Clean up remaining projectile
+projectiles.length = 0;
+console.log('✓ Per-model hitbox collision radius accurately distinguishes Shadow (10px) from Shuttle (6px)');
 
 console.log('ALL TESTS PASSED SUCCESSFULLY! 🚀');

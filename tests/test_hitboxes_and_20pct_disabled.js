@@ -341,9 +341,21 @@ updateHitboxGraphics();
 const circleCommands = hitboxGraphics.commands.filter(cmd => cmd[0] === 'circle');
 assert(circleCommands.length > 0, 'Must draw circles for active ships');
 
+const activeShips = [playerShip, derelictShip, ...(global.window.ships || [])].filter(
+  s => s && s.sprite && s.data && !s.data.isDestroyed
+);
+
 for (const cmd of circleCommands) {
   const [_, cx, cy, r] = cmd;
-  assert(r === 6, `Hull radius should be 6, got ${r}`);
+  const matchingShip = activeShips.find(
+    s => Math.abs(s.sprite.x - cx) < 0.001 && Math.abs(s.sprite.y - cy) < 0.001
+  );
+  assert(matchingShip, `Rendered hitbox circle at (${cx}, ${cy}) must correspond to an active ship`);
+  assert.strictEqual(
+    r,
+    matchingShip.data.hull.hullRadius,
+    `Hull radius for ${matchingShip.data.hull.name} should be ${matchingShip.data.hull.hullRadius}, got ${r}`
+  );
 }
 
 const strokeCommands = hitboxGraphics.commands.filter(cmd => cmd[0] === 'stroke');
@@ -357,6 +369,6 @@ updateHitboxGraphics();
 assert.strictEqual(hitboxGraphics.commands.length, 1, 'Only clear command should be called when OFF');
 assert.strictEqual(hitboxGraphics.commands[0][0], 'clear');
 
-console.log('✓ Red hull hitbox circles rendered accurately with exact hullRadius (6px) and cleared when OFF');
+console.log('✓ Red hull hitbox circles rendered accurately with each ship hull\'s exact hullRadius and cleared when OFF');
 
 console.log('\nALL HITBOX & 20% DISABLED TESTS PASSED! 🔴🛡️');

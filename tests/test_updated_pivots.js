@@ -262,26 +262,27 @@ function runTests() {
   console.log("Starting Hull Pivots Verification Test Suite...\n");
 
   const expectedPivots = {
-    Anvil: { x: 15.5, y: 16.5 },
-    Avocado: { x: 15.5, y: 18 },
-    Boat: { x: 16.5, y: 16 },
-    Crab: { x: 15.5, y: 18 },
-    Delta: { x: 14.5, y: 17 },
-    Hammer: { x: 15.5, y: 14 },
-    Protogon: { x: 10, y: 12 },
-    Shadow: { x: 15.5, y: 17 },
-    Shuttle: { x: 14.5, y: 16 },
-    Skate: { x: 15.5, y: 14 },
+    Anvil: { x: 15.5, y: 16.5, hullRadius: 7 },
+    Avocado: { x: 15.5, y: 20, hullRadius: 7 },
+    Boat: { x: 17.5, y: 17, hullRadius: 8 },
+    Crab: { x: 16.5, y: 18, hullRadius: 7 },
+    Delta: { x: 15.5, y: 18, hullRadius: 6 },
+    Hammer: { x: 16.5, y: 15, hullRadius: 8 },
+    Protogon: { x: 11, y: 13, hullRadius: 7 },
+    Shadow: { x: 15.5, y: 17, hullRadius: 10 },
+    Shuttle: { x: 14.5, y: 16, hullRadius: 6 },
+    Skate: { x: 15.5, y: 14, hullRadius: 7 },
   };
 
-  // 1. Verify all 10 hulls in HULLS_DATA have exact expected coordinates
-  console.log("--- 1. Testing HULLS_DATA Pivot Coordinates ---");
+  // 1. Verify all 10 hulls in HULLS_DATA have exact expected coordinates and hitbox radii
+  console.log("--- 1. Testing HULLS_DATA Pivot Coordinates & Hitbox Radii ---");
   for (const [name, expected] of Object.entries(expectedPivots)) {
     const hull = HULLS_DATA.find(h => h.name === name);
     assert(hull, `Hull ${name} must exist in HULLS_DATA`);
     assert.strictEqual(hull.pivot.x, expected.x, `${name} pivot.x should be ${expected.x}, got ${hull.pivot.x}`);
     assert.strictEqual(hull.pivot.y, expected.y, `${name} pivot.y should be ${expected.y}, got ${hull.pivot.y}`);
-    console.log(`✓ ${name.padEnd(10)}: pivot is { x: ${hull.pivot.x}, y: ${hull.pivot.y} }`);
+    assert.strictEqual(hull.hullRadius, expected.hullRadius, `${name} hullRadius should be ${expected.hullRadius}, got ${hull.hullRadius}`);
+    console.log(`✓ ${name.padEnd(10)}: pivot is { x: ${hull.pivot.x}, y: ${hull.pivot.y} }, hullRadius: ${hull.hullRadius}`);
   }
 
   // 2. Verify buildShip applies fractional pivot to sprite
