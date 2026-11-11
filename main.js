@@ -5,6 +5,7 @@ const fpsDisplay = document.getElementById("fps-counter");
 const shipCountDisplay = document.getElementById("ship-count");
 const spawnBtn = document.getElementById("spawn-btn");
 const spawnTenBtn = document.getElementById("spawn-ten-btn");
+const cloneBtn = document.getElementById("clone-btn");
 const fightBtn = document.getElementById("fight-btn");
 const godModeBtn = document.getElementById("god-mode-btn");
 const hitboxBtn = document.getElementById("hitbox-btn");
@@ -1408,13 +1409,49 @@ function setup() {
     return 'standoff';
   }
 
-  function spawnNpcShips(count) {
+  function spawnNpcShips(count, templateConfig = null) {
     for (let i = 0; i < count; i++) {
-      const npc = buildShip();
+      const hullChoice = templateConfig && templateConfig.hull ? templateConfig.hull : null;
+      const engineChoice = templateConfig && templateConfig.engine ? templateConfig.engine : null;
+      const paintChoice = templateConfig && templateConfig.paint ? templateConfig.paint : null;
+      const weaponsChoice = templateConfig && templateConfig.weapons
+        ? templateConfig.weapons.map((w) => ({
+            weapon: w.weapon,
+            hardpoint: w.hardpoint,
+            lastFired: -Infinity,
+          }))
+        : null;
+
+      const npc = buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice);
+      if (templateConfig) {
+        if (templateConfig.maxShield != null) {
+          npc.data.maxShield = templateConfig.maxShield;
+          npc.data.shield = templateConfig.maxShield;
+        }
+        if (templateConfig.shieldRegenRate != null) {
+          npc.data.shieldRegenRate = templateConfig.shieldRegenRate;
+        }
+        if (templateConfig.maxHullHealth != null) {
+          npc.data.maxHullHealth = templateConfig.maxHullHealth;
+          npc.data.hullHealth = templateConfig.maxHullHealth;
+          npc.data.maxArmor = templateConfig.maxHullHealth;
+          npc.data.armor = templateConfig.maxHullHealth;
+        }
+        if (templateConfig.maxEnergy != null) {
+          npc.data.maxEnergy = templateConfig.maxEnergy;
+          npc.data.energy = templateConfig.maxEnergy;
+        }
+        if (templateConfig.maxJumpFuel != null) {
+          npc.data.maxJumpFuel = templateConfig.maxJumpFuel;
+          npc.data.jumpFuel = templateConfig.maxJumpFuel;
+        }
+      }
       npc.sprite.position.set(GAME_WIDTH * Math.random(), GAME_HEIGHT * Math.random());
       if (isFighting) {
         npc.data.combatStrategy = getRandomCombatStrategy();
         npc.data.aiState = 'COMBAT';
+        const allCombatants = [playerShip, derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed);
+        npc.data.combatTarget = findNearestHostile(npc, allCombatants);
       }
       ships.push(npc);
       app.stage.addChild(npc.sprite);
@@ -1438,6 +1475,24 @@ function setup() {
     updateShipCount();
   }
 
+  function clonePlayerShip() {
+    if (!playerShip || !playerShip.data) return null;
+    const pData = playerShip.data;
+    const prevCount = ships.length;
+    spawnNpcShips(1, {
+      hull: pData.hull,
+      engine: pData.engine,
+      paint: pData.paint,
+      weapons: pData.weapons,
+      maxShield: pData.maxShield,
+      shieldRegenRate: pData.shieldRegenRate,
+      maxHullHealth: pData.maxHullHealth,
+      maxEnergy: pData.maxEnergy,
+      maxJumpFuel: pData.maxJumpFuel,
+    });
+    return ships.length > prevCount ? ships[ships.length - 1] : null;
+  }
+
   // Initial NPC ship with a random faction paint job and default blaster
   spawnNpcShips(1);
 
@@ -1451,6 +1506,13 @@ function setup() {
   if (spawnBtn) {
     spawnBtn.addEventListener('click', (event) => {
       spawnNpcShips(1000);
+      event.target.blur();
+    });
+  }
+
+  if (cloneBtn) {
+    cloneBtn.addEventListener('click', (event) => {
+      clonePlayerShip();
       event.target.blur();
     });
   }
@@ -2592,6 +2654,7 @@ function setup() {
     window.DISABLED_ARMOR_THRESHOLD = DISABLED_ARMOR_THRESHOLD;
     window.playerShip = playerShip;
     window.spawnNpcShips = spawnNpcShips;
+    window.clonePlayerShip = clonePlayerShip;
     window.ships = ships;
     window.derelictShip = derelictShip;
     window.buildShip = buildShip;
