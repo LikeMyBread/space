@@ -231,30 +231,44 @@ setup();
 const playerShip = global.window.playerShip;
 const ships = global.window.ships;
 
-console.log('--- 1. Testing Clone Button Presence in index.html ---');
+console.log('--- 1. Testing Clone Button & Strategy Dropdown Presence in index.html ---');
 const html = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
 assert(html.includes('id="clone-btn"'), 'index.html must contain button with id="clone-btn"');
 assert(html.includes('>Clone</button>'), 'Clone button must display label "Clone"');
-console.log('✓ Clone button exists in index.html Simulation controls');
+assert(html.includes('id="strategy-select"'), 'index.html must contain select with id="strategy-select"');
+assert(html.includes('value="random"'), 'Strategy select must include random option');
+assert(html.includes('value="turn_fight"'), 'Strategy select must include turn_fight option');
+assert(html.includes('value="joust"'), 'Strategy select must include joust option');
+assert(html.includes('value="standoff"'), 'Strategy select must include standoff option');
+console.log('✓ Clone button and Strategy dropdown exist in index.html');
 
 console.log('--- 2. Testing Clone Button Clones Custom Player Configuration ---');
 const bodySelect = domMap.get('body-select');
 const engineSelect = domMap.get('engine-select');
 const paintSelect = domMap.get('paint-select');
+const strategySelect = domMap.get('strategy-select');
 const cloneBtn = domMap.get('clone-btn');
+const fightBtn = domMap.get('fight-btn');
+const reformBtn = domMap.get('reform-btn');
 const shipCountEl = domMap.get('ship-count');
 
-// Customize player ship to Shadow hull (2 hardpoints), turbo_thruster engine, Blue paint
+assert.strictEqual(strategySelect.value, 'random', 'Strategy selector should default to random');
+assert.strictEqual(playerShip.data.combatStrategy, null, 'Default playerShip.data.combatStrategy should be null (random)');
+
+// Customize player ship to Shadow hull (2 hardpoints), turbo_thruster engine, Blue paint, Standoff strategy
 bodySelect.value = 'Shadow';
 bodySelect.dispatch('change');
 engineSelect.value = 'turbo_thruster';
 engineSelect.dispatch('change');
 paintSelect.value = 'Blue';
 paintSelect.dispatch('change');
+strategySelect.value = 'standoff';
+strategySelect.dispatch('change');
 
 assert.strictEqual(playerShip.data.hull.name, 'Shadow');
 assert.strictEqual(playerShip.data.engine.name, 'turbo_thruster');
 assert.strictEqual(playerShip.data.paint.name, 'Blue');
+assert.strictEqual(playerShip.data.combatStrategy, 'standoff');
 assert.strictEqual(playerShip.data.weapons.length, 2, 'Shadow hull should have 2 hardpoints/weapons');
 
 // Simulate player having taken damage so we verify clone spawns fresh & healthy
@@ -273,6 +287,8 @@ assert.notStrictEqual(clone.data.id, playerShip.data.id, 'Clone must receive a u
 assert.strictEqual(clone.data.hull.name, 'Shadow', 'Clone hull must match player hull (Shadow)');
 assert.strictEqual(clone.data.engine.name, 'turbo_thruster', 'Clone engine must match player engine (turbo_thruster)');
 assert.strictEqual(clone.data.paint.name, 'Blue', 'Clone paint must match player paint (Blue)');
+assert.strictEqual(clone.data.combatStrategy, 'standoff', 'Clone combatStrategy must match player strategy (standoff)');
+assert.strictEqual(clone.data.hasFixedStrategy, true, 'Clone with explicit strategy must have hasFixedStrategy flag');
 assert.strictEqual(clone.data.accel, playerShip.data.accel, 'Clone accel must match player accel');
 assert.strictEqual(clone.data.maxSpeed, playerShip.data.maxSpeed, 'Clone maxSpeed must match player maxSpeed');
 assert.strictEqual(clone.sprite.pivot.x, playerShip.sprite.pivot.x, 'Clone pivot.x must match player pivot.x');
@@ -295,21 +311,37 @@ assert(clone.sprite.x >= 0 && clone.sprite.x <= GAME_WIDTH, 'Clone x must be wit
 assert(clone.sprite.y >= 0 && clone.sprite.y <= GAME_HEIGHT, 'Clone y must be within viewport');
 assert(global.app.stage.children.includes(clone.sprite), 'Clone sprite must be added to stage');
 assert.strictEqual(shipCountEl.textContent, (ships.length + 1).toLocaleString(), 'Ship count UI must update');
-console.log('✓ Clone spawns NPC with identical hull, engine, paint, weapons, and physics specs');
+console.log('✓ Clone spawns NPC with identical hull, engine, paint, weapons, strategy, and physics specs');
 
-console.log('--- 3. Testing Fleet Integration & Active Combat Cloning ---');
+console.log('--- 3. Testing Fleet Integration, Fight/Re-form Persistence & Mid-Combat Cloning ---');
 // Not fighting: clone joins same-color fleet around player (since player ID is 1, lowest Blue ID)
 assert.strictEqual(clone.data.formationLeader, playerShip, 'Out of combat, clone of player color should join fleet under player leader');
 
-// During combat (isFighting = true): clone spawns into active combat with strategy
+// Verify Fight! and Re-form Fleet preserve customized strategy
+fightBtn.click();
+assert.strictEqual(clone.data.combatStrategy, 'standoff', 'Fight! must preserve cloned standoff strategy');
+reformBtn.click();
+assert.strictEqual(clone.data.combatStrategy, 'standoff', 'Re-form Fleet must preserve cloned fixed strategy');
+
+// During combat (isFighting = true): clone spawns with explicit Joust strategy
 paintSelect.value = 'Green';
 paintSelect.dispatch('change');
-global.window.isFighting = true;
-const fightClone = global.window.clonePlayerShip();
-assert(fightClone, 'clonePlayerShip() must return the cloned ship');
-assert.strictEqual(fightClone.data.paint.name, 'Green', 'Mid-combat clone must copy updated player paint');
-assert.strictEqual(fightClone.data.aiState, 'COMBAT', 'Mid-combat clone must enter COMBAT state immediately');
-assert(['turn_fight', 'joust', 'standoff'].includes(fightClone.data.combatStrategy), 'Mid-combat clone must be assigned a combat strategy');
-console.log('✓ Clone properly integrates into formation when idle and combat when fighting');
+strategySelect.value = 'joust';
+strategySelect.dispatch('change');
+fightBtn.click();
+const joustClone = global.window.clonePlayerShip();
+assert(joustClone, 'clonePlayerShip() must return the cloned ship');
+assert.strictEqual(joustClone.data.paint.name, 'Green', 'Mid-combat clone must copy updated player paint');
+assert.strictEqual(joustClone.data.aiState, 'COMBAT', 'Mid-combat clone must enter COMBAT state immediately');
+assert.strictEqual(joustClone.data.combatStrategy, 'joust', 'Mid-combat clone must keep explicit joust strategy');
+
+// Switch back to Random strategy and clone mid-combat -> assigns random strategy
+strategySelect.value = 'random';
+strategySelect.dispatch('change');
+assert.strictEqual(playerShip.data.combatStrategy, null, 'Random selection sets combatStrategy back to null');
+const randomClone = global.window.clonePlayerShip();
+assert(!randomClone.data.hasFixedStrategy, 'Random clone must not have fixed strategy flag');
+assert(['turn_fight', 'joust', 'standoff'].includes(randomClone.data.combatStrategy), 'Random mid-combat clone must be assigned a random combat strategy');
+console.log('✓ Strategy menu accurately customizes clones across idle, fleet re-form, and mid-combat spawns');
 
 console.log('\nALL CLONE PLAYER SHIP TESTS PASSED SUCCESSFULLY! 🚀♊');

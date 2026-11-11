@@ -13,6 +13,7 @@ const pivotBtn = document.getElementById("pivot-btn");
 const bodySelect = document.getElementById("body-select");
 const engineSelect = document.getElementById("engine-select");
 const paintSelect = document.getElementById("paint-select");
+const strategySelect = document.getElementById("strategy-select");
 const radarCanvas = document.getElementById("radar-canvas");
 const radarCtx = radarCanvas ? radarCanvas.getContext("2d") : null;
 const playerLegendDot = document.getElementById("player-legend-dot");
@@ -1424,6 +1425,10 @@ function setup() {
 
       const npc = buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice);
       if (templateConfig) {
+        if (templateConfig.combatStrategy) {
+          npc.data.combatStrategy = templateConfig.combatStrategy;
+          npc.data.hasFixedStrategy = true;
+        }
         if (templateConfig.maxShield != null) {
           npc.data.maxShield = templateConfig.maxShield;
           npc.data.shield = templateConfig.maxShield;
@@ -1448,7 +1453,9 @@ function setup() {
       }
       npc.sprite.position.set(GAME_WIDTH * Math.random(), GAME_HEIGHT * Math.random());
       if (isFighting) {
-        npc.data.combatStrategy = getRandomCombatStrategy();
+        if (!npc.data.combatStrategy) {
+          npc.data.combatStrategy = getRandomCombatStrategy();
+        }
         npc.data.aiState = 'COMBAT';
         const allCombatants = [playerShip, derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed);
         npc.data.combatTarget = findNearestHostile(npc, allCombatants);
@@ -1484,6 +1491,7 @@ function setup() {
       engine: pData.engine,
       paint: pData.paint,
       weapons: pData.weapons,
+      combatStrategy: pData.combatStrategy,
       maxShield: pData.maxShield,
       shieldRegenRate: pData.shieldRegenRate,
       maxHullHealth: pData.maxHullHealth,
@@ -1525,7 +1533,9 @@ function setup() {
       if (fightBtn) fightBtn.classList.remove('active');
       for (const ship of ships) {
         if (ship && ship.data) {
-          ship.data.combatStrategy = null;
+          if (!ship.data.hasFixedStrategy) {
+            ship.data.combatStrategy = null;
+          }
           ship.data.combatTarget = null;
           ship.data.isRetreating = false;
           ship.data.aiState = 'APPROACH';
@@ -2238,7 +2248,11 @@ function setup() {
     shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
   }
 
-  function updatePlayerShipConfig({ hull, engine, paint }) {
+  function updatePlayerShipConfig({ hull, engine, paint, combatStrategy }) {
+    if (combatStrategy !== undefined) {
+      playerShip.data.combatStrategy = combatStrategy;
+      if (!hull && !engine && !paint) return;
+    }
     if (hull) {
       playerShip.data.hull = hull;
       // Re-assign default weapons to all hardpoints of the new hull
@@ -2352,6 +2366,17 @@ function setup() {
           organizeFleets([playerShip, ...ships]);
         }
       }
+      event.target.blur();
+    });
+  }
+
+  if (strategySelect) {
+    strategySelect.value = playerShip.data.combatStrategy || 'random';
+    strategySelect.addEventListener('change', (event) => {
+      const selectedStrategy = event.target.value;
+      updatePlayerShipConfig({
+        combatStrategy: selectedStrategy === 'random' ? null : selectedStrategy,
+      });
       event.target.blur();
     });
   }
