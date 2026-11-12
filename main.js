@@ -251,7 +251,7 @@ const WEAPONS_DATA = {
 const HULLS_DATA = [
   {
     name: 'Anvil',
-    mass: 20000, // kg
+    mass: 15000, // kg
     pivot: {x: 15.5, y: 16.5},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Anvil.png",
@@ -283,7 +283,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Boat',
-    mass: 20000, // kg
+    mass: 25000, // kg
     pivot: {x: 17.5, y: 17},
     engine_mount: {x: 16, y: 28},
     img: "img/ships/Boat.png",
@@ -325,7 +325,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Delta',
-    mass: 20000, // kg
+    mass: 7000, // kg
     pivot: {x: 15.5, y: 18},
     engine_mount: {x: 14, y: 25},
     img: "img/ships/Delta.png",
@@ -341,7 +341,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Hammer',
-    mass: 20000, // kg
+    mass: 22000, // kg
     pivot: {x: 16.5, y: 15},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Hammer.png",
@@ -373,7 +373,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Shadow',
-    mass: 20000, // kg
+    mass: 27000, // kg
     pivot: {x: 15.5, y: 17},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Shadow.png",
@@ -394,7 +394,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Shuttle',
-    mass: 20000, // kg
+    mass: 15000, // kg
     pivot: {x: 14.5, y: 16},
     engine_mount: {x: 14, y: 26},
     img: "img/ships/Shuttle.png",
@@ -410,7 +410,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Skate',
-    mass: 20000, // kg
+    mass: 18000, // kg
     pivot: {x: 15.5, y: 14},
     engine_mount: {x: 15, y: 23},
     img: "img/ships/Skate.png",
