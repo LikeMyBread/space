@@ -178,7 +178,7 @@ setup();
 console.log('--- 1. Testing HULLS_DATA Mass Definitions ---');
 const expectedMasses = {
   'Anvil': 15000,
-  'Avocado': 20000,
+  'Avocado': 11000,
   'Boat': 25000,
   'Crab': 20000,
   'Delta': 7000,

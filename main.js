@@ -267,7 +267,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Avocado',
-    mass: 20000, // kg
+    mass: 11000, // kg
     pivot: {x: 15.5, y: 20},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Avocado.png",
@@ -1590,6 +1590,15 @@ function setup() {
         playerShip.data.armor = playerShip.data.maxArmor || 10;
         playerShip.data.isDisabled = false;
         playerShip.data.isDestroyed = false;
+
+        // Drop player as combat target for all NPCs if god mode is enabled
+        const allCombatants = [playerShip, derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed);
+        for (const s of ships) {
+          if (s && s.data && s.data.combatTarget === playerShip) {
+            s.data.combatTarget = findNearestHostile(s, allCombatants);
+          }
+        }
+
         updatePlayerStatusUI();
       } else {
         godModeBtn.textContent = 'God Mode: OFF';
@@ -1644,6 +1653,7 @@ function setup() {
       if (!cand || cand === ship || !cand.data || !cand.sprite || cand.data.isDestroyed || cand.data.isDisabled) continue;
       if (cand.data.isDerelict || cand === derelictShip) continue;
       if (!cand.data.paint || cand.data.paint.name === myColor) continue;
+      if (cand === playerShip && isGodMode) continue;
 
       const dx = cand.sprite.x - ship.sprite.x;
       const dy = cand.sprite.y - ship.sprite.y;
@@ -1661,6 +1671,7 @@ function setup() {
         if (!cand || cand === ship || !cand.data || !cand.sprite || cand.data.isDestroyed) continue;
         if (cand.data.isDerelict || cand === derelictShip) continue;
         if (!cand.data.paint || cand.data.paint.name === myColor) continue;
+        if (cand === playerShip && isGodMode) continue;
 
         const dx = cand.sprite.x - ship.sprite.x;
         const dy = cand.sprite.y - ship.sprite.y;
@@ -1934,7 +1945,7 @@ function setup() {
 
     // Acquire or re-validate hostile target
     let target = shipData.combatTarget;
-    if (!target || !target.sprite || !target.data || target.data.isDestroyed || (target.data.paint && shipData.paint && target.data.paint.name === shipData.paint.name)) {
+    if (!target || !target.sprite || !target.data || target.data.isDestroyed || (target === playerShip && isGodMode) || (target.data.paint && shipData.paint && target.data.paint.name === shipData.paint.name)) {
       target = findNearestHostile(ship, allCombatants);
       shipData.combatTarget = target;
     }
@@ -2450,6 +2461,11 @@ function setup() {
       return;
     }
 
+    // NPC ships ignore the player ship for targeting if it has god mode on
+    if (parentShip === playerShip && isGodMode) {
+      return;
+    }
+
     if (!targetShip.data.isDerelict && !targetShip.data.isDisabled) {
       const maxShield = targetShip.data.maxShield || 10;
       const shieldsFullyRecovered = targetShip.data.retreatShieldsRecovered || (targetShip.data.shield >= maxShield - 0.01);
@@ -2644,7 +2660,17 @@ function setup() {
     });
     Object.defineProperty(window, 'isGodMode', {
       get: () => isGodMode,
-      set: (val) => { isGodMode = !!val; },
+      set: (val) => {
+        isGodMode = !!val;
+        if (isGodMode && typeof ships !== 'undefined') {
+          const allCombatants = [playerShip, derelictShip, ...ships].filter((s) => s && s.data && !s.data.isDestroyed);
+          for (const s of ships) {
+            if (s && s.data && s.data.combatTarget === playerShip) {
+              s.data.combatTarget = findNearestHostile(s, allCombatants);
+            }
+          }
+        }
+      },
       configurable: true,
     });
     Object.defineProperty(window, 'showHitboxes', {
