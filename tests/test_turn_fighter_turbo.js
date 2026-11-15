@@ -387,4 +387,61 @@ assert(frontFighter.data.engineLitSprite.visible === true || frontFighter.data.v
   'Fighter in front hemisphere must maneuver to get behind target');
 console.log('✓ Front hemisphere correctly treated as outside the pocket');
 
+console.log('--- Testing Maneuvering Phase: Distance Threshold (> 3x Weapon Range vs <= 3x Weapon Range) ---');
+// Max weapon range for light blaster is 100 * 0.875 = 87.5px.
+// 3x weapon range is 262.5px.
+const testDistTarget = buildShip(anvilHull, standardEngine, redPaint);
+testDistTarget.sprite.position.set(500, 500);
+testDistTarget.sprite.rotation = Math.PI / 2; // Facing East; rear waypoint is at (455, 500)
+testDistTarget.data.vx = 0;
+testDistTarget.data.vy = 0;
+
+const distFighter = buildShip(anvilHull, turboEngine, bluePaint);
+distFighter.data.combatStrategy = 'turn_fight';
+// Position 400px South of target (> 3x weapon range of 262.5px)
+distFighter.sprite.position.set(500, 900);
+distFighter.sprite.rotation = 0; // Pointing North toward target
+distFighter.data.vx = 0;
+distFighter.data.vy = 0;
+
+updateNpcCombat(distFighter, 1, 1/60, [distFighter, testDistTarget]);
+assert.strictEqual(distFighter.data.strategySubState, 'MANEUVERING TO TARGET', 'Fighter > 3x weapon range must be MANEUVERING TO TARGET');
+assert.strictEqual(distFighter.data.engineLitSprite.visible, true, 'Engine must ignite to fly directly toward target');
+assert(distFighter.data.vy < 0, 'Ship must accelerate North directly toward target (vy < 0)');
+assert.strictEqual(distFighter.data.vx, 0, 'Ship must fly directly toward target with no lateral bias towards rear waypoint');
+console.log('✓ Turn fighter > 3x weapon range enters MANEUVERING TO TARGET and flies directly toward target');
+
+// Simulate flying toward target: speed must accelerate beyond controlled approach limit (25 px/s)
+for (let f = 0; f < 60; f++) {
+  updateNpcCombat(distFighter, 1, 1/60, [distFighter, testDistTarget]);
+}
+const closingSpeed = Math.abs(distFighter.data.vy);
+assert(closingSpeed > 25, `Direct approach speed should exceed 25 px/s controlled approach limit (observed: ${closingSpeed.toFixed(1)} px/s)`);
+console.log(`✓ Long-range approach accelerates at full speed toward target (${closingSpeed.toFixed(1)} px/s > 25 px/s)`);
+
+// Transition test: place fighter at 250px (within 3x weapon range of 262.5px)
+distFighter.sprite.position.set(500, 750); // dist = 250px <= 262.5px
+distFighter.data.vx = 0;
+distFighter.data.vy = 0;
+distFighter.sprite.rotation = 0;
+
+updateNpcCombat(distFighter, 1, 1/60, [distFighter, testDistTarget]);
+assert.strictEqual(distFighter.data.strategySubState, 'MANEUVERING TO REAR', 'Fighter <= 3x weapon range must switch to MANEUVERING TO REAR');
+console.log('✓ Turn fighter <= 3x weapon range switches to MANEUVERING TO REAR');
+
+// Test Case with target facing directly toward turn fighter
+testDistTarget.sprite.rotation = Math.PI; // Facing South toward oncoming fighter; rear is North at (500, 455)
+distFighter.sprite.position.set(500, 850); // 350px away (> 3x range)
+distFighter.sprite.rotation = 0; // Pointing North
+distFighter.data.vx = 0;
+distFighter.data.vy = 0;
+
+updateNpcCombat(distFighter, 1, 1/60, [distFighter, testDistTarget]);
+assert.strictEqual(distFighter.data.strategySubState, 'MANEUVERING TO TARGET', 'Fighter facing target head-on > 3x range flies directly toward target');
+
+distFighter.sprite.position.set(500, 720); // 220px away (<= 3x range)
+updateNpcCombat(distFighter, 1, 1/60, [distFighter, testDistTarget]);
+assert.strictEqual(distFighter.data.strategySubState, 'MANEUVERING TO REAR', 'Fighter facing target head-on <= 3x range switches to maneuver to rear');
+console.log('✓ Head-on orientation correctly handles > 3x range directly toward target and <= 3x range to rear');
+
 console.log('ALL TURBO THRUSTER & TURN FIGHTER TESTS PASSED SUCCESSFULLY! 🎯🚀');

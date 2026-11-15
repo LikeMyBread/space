@@ -1990,6 +1990,15 @@ function setup() {
     const weaponSpeed = weapon.projectile.speed;
     const weaponLifetime = weapon.projectile.lifetime;
     const weaponRange = weaponSpeed * weaponLifetime;
+    let maxWeaponRange = weaponRange;
+    if (shipData.weapons && shipData.weapons.length > 0) {
+      for (const slot of shipData.weapons) {
+        if (slot.weapon && slot.weapon.projectile) {
+          const r = slot.weapon.projectile.speed * slot.weapon.projectile.lifetime;
+          if (r > maxWeaponRange) maxWeaponRange = r;
+        }
+      }
+    }
 
     if (shipData.combatStrategy === 'turn_fight') {
       // === TURN FIGHT STRATEGY ===
@@ -2002,9 +2011,10 @@ function setup() {
       const rearY = Math.cos(targetRot);
       const rearAngle = normalizeAngle(targetRot + Math.PI);
 
+      const isBeyondThreeRanges = dist > 3 * maxWeaponRange;
       const standoff = 45;
-      const wpX = target.sprite.x + rearX * standoff;
-      const wpY = target.sprite.y + rearY * standoff;
+      const wpX = isBeyondThreeRanges ? target.sprite.x : target.sprite.x + rearX * standoff;
+      const wpY = isBeyondThreeRanges ? target.sprite.y : target.sprite.y + rearY * standoff;
       const wpDx = wpX - shipSprite.x;
       const wpDy = wpY - shipSprite.y;
       const wpDist = Math.hypot(wpDx, wpDy);
@@ -2019,11 +2029,18 @@ function setup() {
       const inRange = dist <= weaponRange * 1.05 && dist >= 20;
       const inRearPosition = inCone && inRange;
 
-      // Limit how quickly ships approach their target location to give ample time to get in/stay in position
-      const MAX_TURN_FIGHT_APPROACH_SPEED = 25; // px/s relative to target
-      const approachSpeed = Math.min(MAX_TURN_FIGHT_APPROACH_SPEED, Math.max(0, wpDist * 0.8));
-      const desiredVx = target.data.vx + (wpDist > 0 ? (wpDx / wpDist) * approachSpeed : 0);
-      const desiredVy = target.data.vy + (wpDist > 0 ? (wpDy / wpDist) * approachSpeed : 0);
+      let desiredVx, desiredVy;
+      if (isBeyondThreeRanges) {
+        // More than three times maximum weapon range: fly directly toward the target at full speed
+        desiredVx = (dx / Math.max(1, dist)) * maxSpeed;
+        desiredVy = (dy / Math.max(1, dist)) * maxSpeed;
+      } else {
+        // Within three times maximum weapon range: maneuver to the rear of the target at controlled approach speed
+        const MAX_TURN_FIGHT_APPROACH_SPEED = 25; // px/s relative to target
+        const approachSpeed = Math.min(MAX_TURN_FIGHT_APPROACH_SPEED, Math.max(0, wpDist * 0.8));
+        desiredVx = target.data.vx + (wpDist > 0 ? (wpDx / wpDist) * approachSpeed : 0);
+        desiredVy = target.data.vy + (wpDist > 0 ? (wpDy / wpDist) * approachSpeed : 0);
+      }
 
       const dvX = desiredVx - shipData.vx;
       const dvY = desiredVy - shipData.vy;
@@ -2066,8 +2083,8 @@ function setup() {
           if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
           if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
         } else {
-          // Turn and thrust to put itself on course that passes through the cone
-          shipData.strategySubState = 'MANEUVERING TO REAR';
+          // Turn and thrust to put itself on course: directly toward target or to the rear
+          shipData.strategySubState = isBeyondThreeRanges ? 'MANEUVERING TO TARGET' : 'MANEUVERING TO REAR';
           const courseAngle = Math.atan2(dvX, -dvY);
           const angleDiff = normalizeAngle(courseAngle - shipSprite.rotation);
           shipSprite.rotation = normalizeAngle(shipSprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
