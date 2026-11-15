@@ -582,4 +582,31 @@ assert.strictEqual(shuttleNpc.data.hullHealth, 10, 'Shuttle (6px radius) must NO
 projectiles.length = 0;
 console.log('✓ Per-model hitbox collision radius accurately distinguishes Shadow (10px) from Shuttle (6px)');
 
+console.log('13. Testing Hammer four weapon hardpoints...');
+const hammerHull = HULLS_DATA.find(h => h.name === 'Hammer');
+assert(hammerHull, 'Hammer hull must exist');
+assert.strictEqual(hammerHull.hardpoints.length, 4, 'Hammer must have 4 hardpoints');
+const expectedHardpoints = [
+  { x: 6, y: 9, onTop: false, size: 0 },
+  { x: 11, y: 8, onTop: false, size: 0 },
+  { x: 20, y: 8, onTop: false, size: 0 },
+  { x: 25, y: 9, onTop: false, size: 0 },
+];
+expectedHardpoints.forEach((expected, idx) => {
+  const hp = hammerHull.hardpoints[idx];
+  assert(hp, `Hardpoint ${idx} must exist`);
+  assert.strictEqual(hp.location.x, expected.x, `Hardpoint ${idx} x should be ${expected.x}`);
+  assert.strictEqual(hp.location.y, expected.y, `Hardpoint ${idx} y should be ${expected.y}`);
+  assert.strictEqual(hp.onTop, expected.onTop, `Hardpoint ${idx} onTop should be ${expected.onTop}`);
+  assert.strictEqual(hp.size, expected.size, `Hardpoint ${idx} size should be ${expected.size}`);
+});
+
+const hammerShip = buildShip(hammerHull);
+assert.strictEqual(hammerShip.data.weapons.length, 4, 'Hammer ship must have 4 weapons equipped by default');
+hammerShip.data.weapons.forEach((w, idx) => {
+  assert.strictEqual(w.hardpoint.location.x, expectedHardpoints[idx].x);
+  assert.strictEqual(w.hardpoint.location.y, expectedHardpoints[idx].y);
+});
+console.log('✓ Hammer four weapon hardpoints configured correctly at (6,9), (11,8), (20,8), (25,9)');
+
 console.log('ALL TESTS PASSED SUCCESSFULLY! 🚀');

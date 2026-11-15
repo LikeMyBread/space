@@ -351,7 +351,22 @@ const HULLS_DATA = [
       {
         size: 0,
         onTop: false,
-        location: {x: 15, y: 14},
+        location: {x: 6, y: 9},
+      },
+      {
+        size: 0,
+        onTop: false,
+        location: {x: 11, y: 8},
+      },
+      {
+        size: 0,
+        onTop: false,
+        location: {x: 20, y: 8},
+      },
+      {
+        size: 0,
+        onTop: false,
+        location: {x: 25, y: 9},
       }
     ],
   },
