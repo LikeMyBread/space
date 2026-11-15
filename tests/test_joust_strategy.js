@@ -282,4 +282,82 @@ updateNpcCombat(jouster, 1, 1/60, [jouster, opponent]);
 assert.strictEqual(jouster.data.strategySubState, 'ATTACK RUN', 'Jouster closing on opponent must immediately switch back to ATTACK RUN');
 console.log('✓ Jouster immediately switches back to ATTACK RUN as soon as closing on target');
 
+console.log('--- 6. Testing Jousting Ship While Being Pursued Reverses Course Instead of Flying Backwards ---');
+// Setup: Jouster at (500, 450) with velocity moving North at maxSpeed (vy = -maxSpeed)
+// Pursuer is South at (500, 550) (100px away), pursuing North at vy = -maxSpeed
+jouster.sprite.position.set(500, 450);
+jouster.data.vx = 0;
+jouster.data.vy = -jouster.data.maxSpeed;
+jouster.sprite.rotation = Math.PI; // Facing South towards pursuing opponent
+
+opponent.sprite.position.set(500, 550);
+opponent.data.vx = 0;
+opponent.data.vy = -jouster.data.maxSpeed;
+
+const initialVy = jouster.data.vy;
+updateNpcCombat(jouster, 1, 1/60, [jouster, opponent]);
+
+// In ATTACK RUN, forwardSpeed is negative (moving North while facing South).
+// Must apply forward thrust (South) to cancel backward drift!
+assert.strictEqual(jouster.data.strategySubState, 'ATTACK RUN', 'Jouster must be in ATTACK RUN');
+assert.strictEqual(jouster.data.engineLitSprite.visible, true, 'Jouster moving backwards must ignite main engine to reverse course');
+assert(jouster.data.vy > initialVy, 'Forward thrust must decelerate backward motion (vy must become less negative)');
+console.log('✓ Jouster moving backwards ignites forward thrust to brake and reverse course towards pursuer');
+
+// Simulate 360 frames (6 seconds): with ACCEL_LIMIT = 5s, braking from -maxSpeed to 0 takes 5s.
+// By 6s, velocity has completely reversed to positive South (vy > 0).
+for (let f = 0; f < 360; f++) {
+  // Keep opponent at 100px behind jouster moving at same speed so pursuit continues
+  opponent.sprite.position.y = jouster.sprite.position.y + 100;
+  opponent.data.vy = jouster.data.vy;
+  updateNpcCombat(jouster, 1, 1/60, [jouster, opponent]);
+}
+assert(jouster.data.vy > 0, `Velocity must have reversed to positive South (observed vy: ${jouster.data.vy.toFixed(1)})`);
+console.log(`✓ Jouster successfully reversed course from backwards drift to forward charge (vy = ${jouster.data.vy.toFixed(1)} px/s)`);
+
+console.log('--- 7. Testing Jousting Firing Calculations While in Range During Pursuit ---');
+// Place jouster at (500, 500) and pursuer at (500, 600) (100px away, within 1.5x range of 131.25px)
+// Both moving North at 80 px/s (jouster flying backwards facing pursuer South)
+jouster.sprite.position.set(500, 500);
+jouster.sprite.rotation = Math.PI; // Facing South
+jouster.data.vx = 0;
+jouster.data.vy = -80;
+
+opponent.sprite.position.set(500, 600); // 100px away
+opponent.data.vx = 0;
+opponent.data.vy = -80;
+
+jouster.data.weapons[0].lastFired = -Infinity;
+jouster.data.weaponGroups = null;
+const firedBefore100 = jouster.data.weapons[0].lastFired;
+
+updateNpcCombat(jouster, 1, 1/60, [jouster, opponent]);
+assert(jouster.data.weapons[0].lastFired > firedBefore100, 'Jouster must fire at pursuer within 100px range');
+console.log('✓ Jouster continues firing at pursuer at 100px range');
+
+// Test at 120px range (still within 1.5x weapon range of 131.25px)
+opponent.sprite.position.set(500, 620); // 120px away
+jouster.data.weapons[0].lastFired = -Infinity;
+jouster.data.weaponGroups = null;
+const firedBefore120 = jouster.data.weapons[0].lastFired;
+
+updateNpcCombat(jouster, 1, 1/60, [jouster, opponent]);
+assert(jouster.data.weapons[0].lastFired > firedBefore120, 'Jouster must fire at pursuer within 120px range');
+console.log('✓ Jouster continues firing at pursuer at 120px range');
+
+// Test at 145px range (beyond 1.5x range envelope of 131.25px) -> should NOT fire
+jouster.sprite.position.set(500, 500);
+jouster.data.vx = 0;
+jouster.data.vy = -80;
+opponent.sprite.position.set(500, 645); // 145px away
+opponent.data.vx = 0;
+opponent.data.vy = -80;
+jouster.data.weapons[0].lastFired = -Infinity;
+jouster.data.weaponGroups = null;
+const firedBefore145 = jouster.data.weapons[0].lastFired;
+
+updateNpcCombat(jouster, 1, 1/60, [jouster, opponent]);
+assert.strictEqual(jouster.data.weapons[0].lastFired, firedBefore145, 'Jouster must NOT fire at 145px (beyond 1.5x range)');
+console.log('✓ Jouster correctly withholds fire at 145px beyond range envelope');
+
 console.log('\nALL JOUST STRATEGY TESTS PASSED SUCCESSFULLY! ⚔️🚀');

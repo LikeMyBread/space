@@ -1721,11 +1721,14 @@ function setup() {
       (shooter.data.vx || 0) * fwdX + (shooter.data.vy || 0) * fwdY,
       (shooter.data.vx || 0) * losX + (shooter.data.vy || 0) * losY
     );
-    const effectiveSpeed = speed + forwardSpeed;
-    const maxRange = effectiveSpeed * lifetime * mult;
 
     const relVx = target.data.vx - shooter.data.vx;
     const relVy = target.data.vy - shooter.data.vy;
+
+    // Account for relative closing speed along LOS when target is approaching / pursuing
+    const closingSpeed = Math.max(0, -(relVx * losX + relVy * losY));
+    const effectiveSpeed = speed + Math.max(forwardSpeed, closingSpeed);
+    const maxRange = effectiveSpeed * lifetime * mult;
 
     const a = (relVx * relVx + relVy * relVy) - speed * speed;
     const b = 2 * (dx * relVx + dy * relVy);
@@ -2199,13 +2202,14 @@ function setup() {
       if (!isSeparating) {
         // Inbound attack run / passing run: point and shoot with shot leading
         shipData.strategySubState = 'ATTACK RUN';
-        aimAndShoot(ship, target);
+        const JOUST_ATTACK_RANGE_MULT = 1.5;
+        aimAndShoot(ship, target, JOUST_ATTACK_RANGE_MULT);
 
-        // Keep speed up
-        const curSpeedSq = shipData.vx * shipData.vx + shipData.vy * shipData.vy;
-        if (curSpeedSq < (maxSpeed * 0.9) * (maxSpeed * 0.9)) {
-          const fwdX = Math.sin(shipSprite.rotation);
-          const fwdY = -Math.cos(shipSprite.rotation);
+        // Keep speed up towards opponent
+        const fwdX = Math.sin(shipSprite.rotation);
+        const fwdY = -Math.cos(shipSprite.rotation);
+        const forwardSpeed = shipData.vx * fwdX + shipData.vy * fwdY;
+        if (forwardSpeed < maxSpeed * 0.9) {
           const step = Math.min(dvMax, accel * dt);
           const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
           shipData.vx = clamped.vx;
@@ -2243,7 +2247,7 @@ function setup() {
         }
 
         // Opportunistic shot if serendipitously aligned while extending
-        const { aimAngle, inRange: leadInRange, interceptTime } = getLeadSolution(ship, target);
+        const { aimAngle, inRange: leadInRange, interceptTime } = getLeadSolution(ship, target, 1.5);
         const aimDiff = Math.abs(normalizeAngle(aimAngle - shipSprite.rotation));
         if (leadInRange && (interceptTime > 0 || !interceptTime) && aimDiff < 0.75) {
           fireShipWeapons(ship);
