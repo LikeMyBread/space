@@ -646,27 +646,38 @@ function getBakedShipTexture(hull, engineData, paintColor, weapons = []) {
   return result;
 }
 
-function updateShipEngineVisuals(ship, thrustingState) {
+function updateShipEngineVisuals(ship, thrustingState, reversingState) {
   if (!ship || !ship.data || !ship.data.engineLitSprites) return;
   const data = ship.data;
   const hull = data.hull;
-  const sprites = data.engineLitSprites;
-  if (!sprites || sprites.length === 0) return;
+  const litSprites = data.engineLitSprites;
+  const revSprites = data.engineReverseSprites || [];
+  if (!litSprites || litSprites.length === 0) return;
 
   const isThrusting = (thrustingState !== undefined)
     ? !!thrustingState
     : (data.engineLitSprite ? !!data.engineLitSprite._isThrusting : false);
 
-  if (!isThrusting || data.isDisabled || data.isDestroyed) {
-    for (let i = 0; i < sprites.length; i++) {
-      sprites[i].visible = false;
+  const isReversing = (reversingState !== undefined)
+    ? !!reversingState
+    : (data.engineReverseSprite ? !!data.engineReverseSprite._isReversing : false);
+
+  if (data.isDisabled || data.isDestroyed) {
+    for (let i = 0; i < litSprites.length; i++) {
+      litSprites[i].visible = false;
+    }
+    for (let i = 0; i < revSprites.length; i++) {
+      revSprites[i].visible = false;
     }
     return;
   }
 
-  // Single-engine ships always show the firing graphic when thrusting
-  if (sprites.length < 2) {
-    sprites[0].visible = true;
+  // Single-engine ships:
+  if (litSprites.length < 2) {
+    litSprites[0].visible = isThrusting;
+    if (revSprites.length > 0) {
+      revSprites[0].visible = isReversing;
+    }
     return;
   }
 
@@ -688,19 +699,38 @@ function updateShipEngineVisuals(ship, thrustingState) {
   const mounts = getEngineMounts(hull);
   const pivotX = (hull && hull.pivot) ? hull.pivot.x : 0;
 
-  for (let i = 0; i < sprites.length; i++) {
+  for (let i = 0; i < litSprites.length; i++) {
     const mount = mounts[i] || { x: pivotX };
-    const isLeft = (mount.x < pivotX) || (sprites.length === 2 && i === 0 && mounts[1] && mount.x <= mounts[1].x);
-    const isRight = (mount.x > pivotX) || (sprites.length === 2 && i === 1 && mounts[0] && mount.x >= mounts[0].x);
+    const isLeft = (mount.x < pivotX) || (litSprites.length === 2 && i === 0 && mounts[1] && mount.x <= mounts[1].x);
+    const isRight = (mount.x > pivotX) || (litSprites.length === 2 && i === 1 && mounts[0] && mount.x >= mounts[0].x);
 
-    if (turnDir === 'left' && isLeft) {
-      // The engine on the side the ship is turning toward does not show the firing graphic
-      sprites[i].visible = false;
-    } else if (turnDir === 'right' && isRight) {
-      // The engine on the side the ship is turning toward does not show the firing graphic
-      sprites[i].visible = false;
+    const isTurningToward = (turnDir === 'left' && isLeft) || (turnDir === 'right' && isRight);
+    const isTurningAway = (turnDir === 'left' && isRight) || (turnDir === 'right' && isLeft);
+
+    let litVis = false;
+    let revVis = false;
+
+    if (isThrusting) {
+      // If the ship is turning and thrusting, it should not show the engine it's turning toward reversing, just not firing.
+      litVis = !isTurningToward;
+      revVis = false;
+    } else if (isReversing) {
+      // Reversing via reverse throttle
+      litVis = false;
+      revVis = true;
+    } else if (turnDir === 'left' || turnDir === 'right') {
+      // Turning but not thrusting:
+      // "shows the engine on the side it's turning away from burning and the engine on the side it's turning toward reverses if applicable"
+      litVis = isTurningAway;
+      revVis = isTurningToward;
     } else {
-      sprites[i].visible = true;
+      litVis = false;
+      revVis = false;
+    }
+
+    litSprites[i].visible = litVis;
+    if (revSprites[i]) {
+      revSprites[i].visible = revVis;
     }
   }
 }
@@ -724,7 +754,7 @@ function createEngineLitProxy(shipObj, sprites) {
     set(target, prop, value, receiver) {
       if (prop === 'visible') {
         isThrusting = !!value;
-        updateShipEngineVisuals(shipObj, isThrusting);
+        updateShipEngineVisuals(shipObj, isThrusting, undefined);
         return true;
       }
       if (prop === '_isThrusting') {
@@ -760,9 +790,11 @@ function createEngineReverseProxy(shipObj, sprites) {
     set(target, prop, value, receiver) {
       if (prop === 'visible') {
         isReversing = !!value;
-        for (const s of sprites) {
-          s.visible = isReversing;
-        }
+        updateShipEngineVisuals(shipObj, undefined, isReversing);
+        return true;
+      }
+      if (prop === '_isReversing') {
+        isReversing = !!value;
         return true;
       }
       if (prop === 'texture' || prop === 'tint') {
@@ -881,9 +913,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     get() { return _turnDir; },
     set(val) {
       _turnDir = val;
-      if (newData.engineLitSprite && newData.engineLitSprite._isThrusting) {
-        updateShipEngineVisuals(shipObj, true);
-      }
+      updateShipEngineVisuals(shipObj);
     },
     configurable: true,
     enumerable: true,

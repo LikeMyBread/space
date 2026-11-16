@@ -291,62 +291,126 @@ const shadowRightSprite = testShadow.data.engineLitSprites[1];
 // 3a. Thrusting forward with no turn: both engines show firing graphic
 testShadow.data.engineLitSprite.visible = true;
 testShadow.data.turnDirection = null;
-assert.strictEqual(shadowLeftSprite.visible, true, 'Left engine must show firing graphic when thrusting straight');
-assert.strictEqual(shadowRightSprite.visible, true, 'Right engine must show firing graphic when thrusting straight');
+const shadowLeftLit = testShadow.data.engineLitSprites[0];
+const shadowRightLit = testShadow.data.engineLitSprites[1];
+const shadowLeftRev = testShadow.data.engineReverseSprites[0];
+const shadowRightRev = testShadow.data.engineReverseSprites[1];
+
+assert.strictEqual(shadowLeftLit.visible, true, 'Left engine must show firing graphic when thrusting straight');
+assert.strictEqual(shadowRightLit.visible, true, 'Right engine must show firing graphic when thrusting straight');
+assert.strictEqual(shadowLeftRev.visible, false, 'Left reverse must be off when thrusting forward');
+assert.strictEqual(shadowRightRev.visible, false, 'Right reverse must be off when thrusting forward');
 assert.strictEqual(testShadow.data.engineLitSprite.visible, true, 'Overall thruster state is active');
-console.log('✓ Forward thrust straight: both engines fire (left=true, right=true)');
+console.log('✓ Forward thrust straight: both engines fire forward (leftLit=true, rightLit=true, rev=false)');
 
 // 3b. Turning LEFT while thrusting:
-// "the engine on the side that the ship is turning toward doesn't show the firing graphic"
-// Turning toward LEFT -> LEFT engine (index 0) must NOT show firing graphic
-// Right engine (index 1) must continue showing firing graphic
+// "If the ship is turning and thrusting, it should not show the engine it's turning toward reversing, just not firing."
+// Left engine (turning toward): not firing forward (false), not reversing (false)
+// Right engine (turning away): firing forward (true), not reversing (false)
 testShadow.data.turnDirection = 'left';
-assert.strictEqual(shadowLeftSprite.visible, false, 'Left engine must NOT show firing graphic when turning left');
-assert.strictEqual(shadowRightSprite.visible, true, 'Right engine MUST show firing graphic when turning left');
+assert.strictEqual(shadowLeftLit.visible, false, 'Left engine must NOT fire forward when turning left while thrusting');
+assert.strictEqual(shadowLeftRev.visible, false, 'Left engine must NOT reverse when turning left while thrusting');
+assert.strictEqual(shadowRightLit.visible, true, 'Right engine MUST fire forward when turning left while thrusting');
+assert.strictEqual(shadowRightRev.visible, false, 'Right engine must NOT reverse when turning left while thrusting');
 assert.strictEqual(testShadow.data.engineLitSprite.visible, true, 'Overall thruster state remains active');
-console.log('✓ Turning left while thrusting: left engine suppressed (left=false, right=true)');
+console.log('✓ Turning left while thrusting: left engine not firing and not reversing, right engine firing');
 
 // 3c. Turning RIGHT while thrusting:
-// Turning toward RIGHT -> RIGHT engine (index 1) must NOT show firing graphic
-// Left engine (index 0) must continue showing firing graphic
+// Right engine (turning toward): not firing forward (false), not reversing (false)
+// Left engine (turning away): firing forward (true), not reversing (false)
 testShadow.data.turnDirection = 'right';
-assert.strictEqual(shadowLeftSprite.visible, true, 'Left engine MUST show firing graphic when turning right');
-assert.strictEqual(shadowRightSprite.visible, false, 'Right engine must NOT show firing graphic when turning right');
+assert.strictEqual(shadowLeftLit.visible, true, 'Left engine MUST fire forward when turning right while thrusting');
+assert.strictEqual(shadowLeftRev.visible, false, 'Left engine must NOT reverse when turning right while thrusting');
+assert.strictEqual(shadowRightLit.visible, false, 'Right engine must NOT fire forward when turning right while thrusting');
+assert.strictEqual(shadowRightRev.visible, false, 'Right engine must NOT reverse when turning right while thrusting');
 assert.strictEqual(testShadow.data.engineLitSprite.visible, true, 'Overall thruster state remains active');
-console.log('✓ Turning right while thrusting: right engine suppressed (left=true, right=false)');
+console.log('✓ Turning right while thrusting: right engine not firing and not reversing, left engine firing');
 
-// 3d. Straightening out: both engines fire again
+// 3d. Straightening out while thrusting: both engines fire again
 testShadow.data.turnDirection = null;
-assert.strictEqual(shadowLeftSprite.visible, true, 'Left engine resumes firing when straight');
-assert.strictEqual(shadowRightSprite.visible, true, 'Right engine resumes firing when straight');
+assert.strictEqual(shadowLeftLit.visible, true, 'Left engine resumes firing when straight');
+assert.strictEqual(shadowRightLit.visible, true, 'Right engine resumes firing when straight');
+assert.strictEqual(shadowLeftRev.visible, false, 'Left reverse remains off');
+assert.strictEqual(shadowRightRev.visible, false, 'Right reverse remains off');
 console.log('✓ Straightening out restores both firing graphics (left=true, right=true)');
 
-// 3e. Cutting thrust (not thrusting): neither engine shows firing graphic even if turning
+// 3e. Turning LEFT but NOT thrusting:
+// "if a ship with two engines is turning but not thrusting, it shows the engine on the side it's turning away from burning and the engine on the side it's turning toward reverses if applicable."
+// Turning away from: RIGHT -> Right engine burns forward (rightLit=true, rightRev=false)
+// Turning toward: LEFT -> Left engine reverses if applicable (leftLit=false, leftRev=true)
 testShadow.data.engineLitSprite.visible = false;
 testShadow.data.turnDirection = 'left';
-assert.strictEqual(shadowLeftSprite.visible, false, 'Left engine must be off when not thrusting');
-assert.strictEqual(shadowRightSprite.visible, false, 'Right engine must be off when not thrusting');
-assert.strictEqual(testShadow.data.engineLitSprite.visible, false, 'Overall thruster state is inactive');
-console.log('✓ Cutting thrust turns off both engines even while turning (left=false, right=false)');
+assert.strictEqual(shadowRightLit.visible, true, 'Right engine (side turning away from) must burn forward when turning left without thrust');
+assert.strictEqual(shadowRightRev.visible, false, 'Right reverse must be off when turning left');
+assert.strictEqual(shadowLeftLit.visible, false, 'Left engine must not fire forward when turning left without thrust');
+assert.strictEqual(shadowLeftRev.visible, true, 'Left engine (side turning toward) must reverse when turning left without thrust');
+console.log('✓ Turning left without thrust: right burns forward, left reverses (rightLit=true, leftRev=true)');
+
+// 3f. Turning RIGHT but NOT thrusting:
+// Turning away from: LEFT -> Left engine burns forward (leftLit=true, leftRev=false)
+// Turning toward: RIGHT -> Right engine reverses if applicable (rightLit=false, rightRev=true)
+testShadow.data.turnDirection = 'right';
+assert.strictEqual(shadowLeftLit.visible, true, 'Left engine (side turning away from) must burn forward when turning right without thrust');
+assert.strictEqual(shadowLeftRev.visible, false, 'Left reverse must be off when turning right');
+assert.strictEqual(shadowRightLit.visible, false, 'Right engine must not fire forward when turning right without thrust');
+assert.strictEqual(shadowRightRev.visible, true, 'Right engine (side turning toward) must reverse when turning right without thrust');
+console.log('✓ Turning right without thrust: left burns forward, right reverses (leftLit=true, rightRev=true)');
+
+// 3g. Neither turning nor thrusting: all thrusters off
+testShadow.data.turnDirection = null;
+assert.strictEqual(shadowLeftLit.visible, false, 'Left forward must be off when coasting');
+assert.strictEqual(shadowLeftRev.visible, false, 'Left reverse must be off when coasting');
+assert.strictEqual(shadowRightLit.visible, false, 'Right forward must be off when coasting');
+assert.strictEqual(shadowRightRev.visible, false, 'Right reverse must be off when coasting');
+console.log('✓ Neither turning nor thrusting: all thrusters off (leftLit=false, rightLit=false, rev=false)');
+
+// 3h. Non-reversible engine turning but not thrusting (turbo_thruster on Shadow):
+// "reverses if applicable" -> since turbo thruster cannot reverse, no reverse flame is shown
+const shadowTurboTest = buildShip(shadowHull, turboEngine, bluePaint);
+shadowTurboTest.data.engineLitSprite.visible = false;
+shadowTurboTest.data.turnDirection = 'left';
+assert.strictEqual(shadowTurboTest.data.engineLitSprites[1].visible, true, 'Right engine burns forward on turbo thruster');
+assert.strictEqual(shadowTurboTest.data.engineLitSprites[0].visible, false, 'Left engine not firing forward');
+assert.strictEqual(shadowTurboTest.data.engineReverseSprites.length, 0, 'Turbo thruster has no reverse sprites (reversible: false)');
+console.log('✓ Non-reversible turbo thruster burns outside engine but does not reverse inside engine');
 
 console.log('\n--- 4. Testing Boat Hull Turning Visuals ---');
 const testBoat = buildShip(boatHull, stdEngine, bluePaint);
 // Sprites: index 0 is at x:10 (left, 10 < 17.5), index 1 is at x:23 (right, 23 > 17.5)
-const boatLeftSprite = testBoat.data.engineLitSprites[0];
-const boatRightSprite = testBoat.data.engineLitSprites[1];
+const boatLeftLit = testBoat.data.engineLitSprites[0];
+const boatRightLit = testBoat.data.engineLitSprites[1];
+const boatLeftRev = testBoat.data.engineReverseSprites[0];
+const boatRightRev = testBoat.data.engineReverseSprites[1];
 
+// 4a. Turning left while thrusting
 testBoat.data.engineLitSprite.visible = true;
 testBoat.data.turnDirection = 'left';
-assert.strictEqual(boatLeftSprite.visible, false, 'Boat left engine must be off when turning left');
-assert.strictEqual(boatRightSprite.visible, true, 'Boat right engine must be on when turning left');
+assert.strictEqual(boatLeftLit.visible, false, 'Boat left engine must be off when turning left');
+assert.strictEqual(boatLeftRev.visible, false, 'Boat left engine must not reverse when turning left while thrusting');
+assert.strictEqual(boatRightLit.visible, true, 'Boat right engine must be on when turning left');
+assert.strictEqual(boatRightRev.visible, false, 'Boat right engine must not reverse when turning left while thrusting');
 
+// 4b. Turning right while thrusting
 testBoat.data.turnDirection = 'right';
-assert.strictEqual(boatLeftSprite.visible, true, 'Boat left engine must be on when turning right');
-assert.strictEqual(boatRightSprite.visible, false, 'Boat right engine must be off when turning right');
+assert.strictEqual(boatLeftLit.visible, true, 'Boat left engine must be on when turning right');
+assert.strictEqual(boatLeftRev.visible, false, 'Boat left engine must not reverse when turning right while thrusting');
+assert.strictEqual(boatRightLit.visible, false, 'Boat right engine must be off when turning right');
+assert.strictEqual(boatRightRev.visible, false, 'Boat right engine must not reverse when turning right while thrusting');
 
+// 4c. Turning left without thrust
+testBoat.data.engineLitSprite.visible = false;
+testBoat.data.turnDirection = 'left';
+assert.strictEqual(boatLeftLit.visible, false, 'Boat left engine must not fire forward when turning left without thrust');
+assert.strictEqual(boatLeftRev.visible, true, 'Boat left engine must reverse when turning left without thrust');
+assert.strictEqual(boatRightLit.visible, true, 'Boat right engine must burn forward when turning left without thrust');
+assert.strictEqual(boatRightRev.visible, false, 'Boat right reverse must be off when turning left without thrust');
+
+// 4d. Straightening out without thrust
 testBoat.data.turnDirection = null;
-assert.strictEqual(boatLeftSprite.visible, true, 'Boat left engine on when straight');
-assert.strictEqual(boatRightSprite.visible, true, 'Boat right engine on when straight');
+assert.strictEqual(boatLeftLit.visible, false, 'Boat left forward off when straight without thrust');
+assert.strictEqual(boatLeftRev.visible, false, 'Boat left reverse off when straight without thrust');
+assert.strictEqual(boatRightLit.visible, false, 'Boat right forward off when straight without thrust');
+assert.strictEqual(boatRightRev.visible, false, 'Boat right reverse off when straight without thrust');
 console.log('✓ Boat hull correctly applies differential thruster visuals during left/right turns');
 
 console.log('\n--- 5. Testing Single Engine Hulls Do Not Suppress Flame ---');
