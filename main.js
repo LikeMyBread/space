@@ -1810,7 +1810,7 @@ function setup() {
     const mult = (rangeMultiplier !== 1.0)
       ? rangeMultiplier
       : (ship.data && ship.data.combatStrategy === 'standoff' ? 1.5 : 1.0);
-    const { aimAngle, inRange, interceptTime } = getLeadSolution(ship, target, mult);
+    const { aimAngle, inRange, interceptTime, maxRange } = getLeadSolution(ship, target, mult);
     const angleDiff = normalizeAngle(aimAngle - ship.sprite.rotation);
 
     ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
@@ -1823,7 +1823,7 @@ function setup() {
     if (inRange && (interceptTime > 0 || !interceptTime) && (remainingDiff < 0.85 || Math.abs(angleDiff) < 0.85)) {
       fireShipWeapons(ship);
     }
-    return { aimAngle, angleDiff, inRange };
+    return { aimAngle, angleDiff, inRange, interceptTime, maxRange };
   }
 
   function updateNpcCombat(ship, delta, dt, allCombatants) {
@@ -2169,15 +2169,47 @@ function setup() {
 
       // Standoff strategy begins firing at 1.5x max weapon range
       const STANDOFF_RANGE_MULT = 1.5;
-      aimAndShoot(ship, target, STANDOFF_RANGE_MULT);
+      const { inRange: leadInRange, maxRange: leadMaxRange } = aimAndShoot(ship, target, STANDOFF_RANGE_MULT);
 
-      const targetMaxRange = Math.max(baseWeaponRange * STANDOFF_RANGE_MULT * 0.92, effectiveWeaponRange * STANDOFF_RANGE_MULT * 0.92) + targetHitboxRadius;
+      const maxWeaponFiringRange = Math.max(
+        leadMaxRange || 0,
+        baseWeaponRange * STANDOFF_RANGE_MULT + targetHitboxRadius,
+        effectiveWeaponRange * STANDOFF_RANGE_MULT + targetHitboxRadius
+      );
+      const targetMaxRange = Math.max(
+        baseWeaponRange * STANDOFF_RANGE_MULT * 0.92,
+        effectiveWeaponRange * STANDOFF_RANGE_MULT * 0.92
+      ) + targetHitboxRadius;
       const targetMinRange = baseWeaponRange * 0.72;
+      const inFiringRange = leadInRange || dist <= maxWeaponFiringRange;
 
-      if (dist > targetMaxRange) {
-        // Distance is drifting out of range or already out of range:
-        // Apply forward thrust just enough to get back in range
+      if (!inFiringRange) {
+        // Outside weapon firing range: close distance to get back in range
         shipData.strategySubState = 'CLOSING';
+        const excessDist = dist - maxWeaponFiringRange;
+        const desiredClosingSpeed = Math.min(maxSpeed * 0.8, Math.max(15, excessDist * 0.6));
+
+        if (closingSpeed < desiredClosingSpeed && dotFwdLOS > 0.4) {
+          const neededDv = (desiredClosingSpeed - closingSpeed) / Math.max(0.1, dotFwdLOS);
+          if (neededDv > 0.5) {
+            const step = Math.min(dvMax, neededDv);
+            const clamped = checkSpeed(shipData.vx + step * fwdX, shipData.vy + step * fwdY, maxSpeed);
+            shipData.vx = clamped.vx;
+            shipData.vy = clamped.vy;
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = true;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          } else {
+            if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+            if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+          }
+        } else {
+          if (shipData.engineLitSprite) shipData.engineLitSprite.visible = false;
+          if (shipData.engineReverseSprite) shipData.engineReverseSprite.visible = false;
+        }
+      } else if (dist > targetMaxRange) {
+        // Within weapon firing range, but drifting toward outer edge:
+        // Hold range and gently maintain closing speed without dropping out of range
+        shipData.strategySubState = 'HOLDING RANGE';
         const excessDist = dist - targetMaxRange;
         const desiredClosingSpeed = Math.min(maxSpeed * 0.8, Math.max(15, excessDist * 0.6));
 

@@ -494,7 +494,7 @@ subStateAttacker.data.combatTarget = subStateTarget;
 updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
 assert.strictEqual(subStateAttacker.data.strategySubState, 'CLOSING', 'Standoff beyond max range must be CLOSING');
 
-// B. Sweet spot (75px & 100px away, targetMaxRange ~120.75px, targetMinRange ~63px) -> HOLDING RANGE
+// B. Sweet spot (75px, 100px, 120px, 125px, 130px, 135px away) -> HOLDING RANGE
 subStateTarget.sprite.position.set(500, 425); // 75px
 subStateAttacker.data.vx = 0;
 subStateAttacker.data.vy = 0;
@@ -506,6 +506,27 @@ subStateAttacker.data.vx = 0;
 subStateAttacker.data.vy = 0;
 updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
 assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff at 100px must be in HOLDING RANGE stage (not stuck in CLOSING)');
+
+subStateTarget.sprite.position.set(500, 375); // 125px (well within 1.5x weapon range)
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = 0;
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff at 125px must be in HOLDING RANGE stage (not stuck in CLOSING)');
+
+subStateTarget.sprite.position.set(500, 365); // 135px (within 1.5x weapon range of ~140px)
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = 0;
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff at 135px must be in HOLDING RANGE stage (not stuck in CLOSING)');
+
+// When chasing at 50 px/s with extended effective weapon range (~200px), 160px must be in HOLDING RANGE
+subStateTarget.sprite.position.set(500, 340); // 160px
+subStateAttacker.data.vx = 0;
+subStateAttacker.data.vy = -50;
+subStateTarget.data.vx = 0;
+subStateTarget.data.vy = 0;
+updateNpcCombat(subStateAttacker, 1, 1/60, [subStateAttacker, subStateTarget]);
+assert.strictEqual(subStateAttacker.data.strategySubState, 'HOLDING RANGE', 'Standoff chasing at 160px within effective weapon range must be in HOLDING RANGE');
 
 // C. Inside min range (30px away < targetMinRange) -> BACKING OFF
 subStateTarget.sprite.position.set(500, 470);
