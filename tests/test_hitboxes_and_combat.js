@@ -609,4 +609,60 @@ hammerShip.data.weapons.forEach((w, idx) => {
 });
 console.log('✓ Hammer four weapon hardpoints configured correctly at (6,9), (11,8), (20,8), (25,9)');
 
+console.log('14. Testing weapon range calculations include target hitbox radius...');
+const getLeadSolution = global.window.getLeadSolution;
+assert(typeof getLeadSolution === 'function', 'getLeadSolution must be defined');
+
+const deltaHull = HULLS_DATA.find(h => h.name === 'Delta'); // hullRadius: 6
+const hammerHullRef = HULLS_DATA.find(h => h.name === 'Hammer'); // hullRadius: 8
+const anvilHullRef = HULLS_DATA.find(h => h.name === 'Anvil'); // hullRadius: 7
+// shadowHull was declared above (hullRadius: 10)
+
+const testShooter = buildShip(deltaHull);
+testShooter.sprite.position.set(500, 500);
+testShooter.data.vx = 0;
+testShooter.data.vy = 0;
+testShooter.sprite.rotation = 0; // Facing North
+
+// Base weapon range for light blaster: 100 * 0.875 = 87.5px.
+// 1. Verify maxRange property correctly adds target hitbox radius for various hulls
+const deltaTarget = buildShip(deltaHull);
+deltaTarget.sprite.position.set(500, 400); // 100px
+const solDelta = getLeadSolution(testShooter, deltaTarget);
+assert.strictEqual(solDelta.maxRange, 87.5 + 6, 'Delta maxRange must be 87.5 + 6 = 93.5px');
+
+const anvilTarget = buildShip(anvilHullRef);
+anvilTarget.sprite.position.set(500, 400);
+const solAnvil = getLeadSolution(testShooter, anvilTarget);
+assert.strictEqual(solAnvil.maxRange, 87.5 + 7, 'Anvil maxRange must be 87.5 + 7 = 94.5px');
+
+const hammerTarget = buildShip(hammerHullRef);
+hammerTarget.sprite.position.set(500, 400);
+const solHammer = getLeadSolution(testShooter, hammerTarget);
+assert.strictEqual(solHammer.maxRange, 87.5 + 8, 'Hammer maxRange must be 87.5 + 8 = 95.5px');
+
+const shadowTarget = buildShip(shadowHull);
+shadowTarget.sprite.position.set(500, 400);
+const solShadow = getLeadSolution(testShooter, shadowTarget);
+assert.strictEqual(solShadow.maxRange, 87.5 + 10, 'Shadow maxRange must be 87.5 + 10 = 97.5px');
+
+// 2. Test inRange boundary distinguishing Delta (6px hitbox) from Shadow (10px hitbox)
+// At 108px distance:
+// Delta flight time needed = 1.08s > maxFlightTime (1.00625 + 0.06 = 1.06625s) -> OUT OF RANGE
+// Shadow flight time needed = 1.08s <= maxFlightTime (1.00625 + 0.10 = 1.10625s) -> IN RANGE
+deltaTarget.sprite.position.set(500, 392); // dist = 108px
+const solDelta108 = getLeadSolution(testShooter, deltaTarget);
+assert.strictEqual(solDelta108.inRange, false, 'Delta at 108px must be OUT of range');
+
+shadowTarget.sprite.position.set(500, 392); // dist = 108px
+const solShadow108 = getLeadSolution(testShooter, shadowTarget);
+assert.strictEqual(solShadow108.inRange, true, 'Shadow at 108px must be IN range due to 10px hitbox radius');
+
+// Beyond Shadow's range envelope at 115px:
+shadowTarget.sprite.position.set(500, 385); // dist = 115px
+const solShadow115 = getLeadSolution(testShooter, shadowTarget);
+assert.strictEqual(solShadow115.inRange, false, 'Shadow at 115px must be OUT of range');
+
+console.log('✓ Weapon range calculations accurately add target hitbox radius (Delta 6px, Anvil 7px, Hammer 8px, Shadow 10px)');
+
 console.log('ALL TESTS PASSED SUCCESSFULLY! 🚀');

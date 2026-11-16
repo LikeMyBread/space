@@ -781,7 +781,7 @@ function formFleet(leader, followerShips, spacing = FORMATION_DISTANCE) {
   }
 }
 
-function getShipMaxWeaponRange(ship) {
+function getShipMaxWeaponRange(ship, target) {
   const defaultRange = (typeof WEAPONS_DATA !== 'undefined' && WEAPONS_DATA.light_blaster && WEAPONS_DATA.light_blaster.projectile)
     ? WEAPONS_DATA.light_blaster.projectile.speed * WEAPONS_DATA.light_blaster.projectile.lifetime
     : 87.5;
@@ -800,7 +800,15 @@ function getShipMaxWeaponRange(ship) {
       }
     }
   }
-  return maxRange > 0 ? maxRange : defaultRange;
+  const baseRange = maxRange > 0 ? maxRange : defaultRange;
+  const targetHitboxRadius = (target && target.data)
+    ? (target.data.hull && target.data.hull.hullRadius != null
+        ? target.data.hull.hullRadius
+        : (target.data.hullRadius != null
+            ? target.data.hullRadius
+            : (target.data.hitboxRadius != null ? target.data.hitboxRadius : 0)))
+    : 0;
+  return baseRange + targetHitboxRadius;
 }
 
 function getFleetLeader(ship, allShipsList) {
@@ -1743,7 +1751,17 @@ function setup() {
     // Account for relative closing speed along LOS when target is approaching / pursuing
     const closingSpeed = Math.max(0, -(relVx * losX + relVy * losY));
     const effectiveSpeed = speed + Math.max(forwardSpeed, closingSpeed);
-    const maxRange = effectiveSpeed * lifetime * mult;
+
+    // Target's hitbox radius (projectile only needs to hit the near edge of the hitbox)
+    const targetHitboxRadius = (target && target.data)
+      ? (target.data.hull && target.data.hull.hullRadius != null
+          ? target.data.hull.hullRadius
+          : (target.data.hullRadius != null
+              ? target.data.hullRadius
+              : (target.data.hitboxRadius != null ? target.data.hitboxRadius : 0)))
+      : 0;
+
+    const maxRange = effectiveSpeed * lifetime * mult + targetHitboxRadius;
 
     const a = (relVx * relVx + relVy * relVy) - speed * speed;
     const b = 2 * (dx * relVx + dy * relVy);
@@ -1771,7 +1789,7 @@ function setup() {
     let aimY = dy;
     let inRange = false;
 
-    const maxFlightTime = mult > 1.0 ? lifetime * mult : lifetime * 1.15;
+    const maxFlightTime = (mult > 1.0 ? lifetime * mult : lifetime * 1.15) + (speed > 0 ? targetHitboxRadius / speed : 0);
 
     if (t > 0) {
       aimX = dx + relVx * t;
@@ -1780,8 +1798,8 @@ function setup() {
     } else {
       const distSq = dx * dx + dy * dy;
       // If no valid intercept solution exists (e.g. crossing faster than muzzle speed),
-      // only consider in-range at point-blank range (<= 15px) where collision is immediate.
-      inRange = distSq <= 15 * 15;
+      // only consider in-range at point-blank range (<= 15px + hitbox radius) where collision is immediate.
+      inRange = distSq <= Math.pow(15 + targetHitboxRadius, 2);
     }
 
     const aimAngle = Math.atan2(aimX, -aimY);
@@ -1984,17 +2002,25 @@ function setup() {
     const dy = target.sprite.y - shipSprite.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
+    const targetHitboxRadius = (target && target.data)
+      ? (target.data.hull && target.data.hull.hullRadius != null
+          ? target.data.hull.hullRadius
+          : (target.data.hullRadius != null
+              ? target.data.hullRadius
+              : (target.data.hitboxRadius != null ? target.data.hitboxRadius : 0)))
+      : 0;
+
     const weapon = (shipData.weapons && shipData.weapons[0] && shipData.weapons[0].weapon)
       ? shipData.weapons[0].weapon
       : WEAPONS_DATA.light_blaster;
     const weaponSpeed = weapon.projectile.speed;
     const weaponLifetime = weapon.projectile.lifetime;
-    const weaponRange = weaponSpeed * weaponLifetime;
+    const weaponRange = weaponSpeed * weaponLifetime + targetHitboxRadius;
     let maxWeaponRange = weaponRange;
     if (shipData.weapons && shipData.weapons.length > 0) {
       for (const slot of shipData.weapons) {
         if (slot.weapon && slot.weapon.projectile) {
-          const r = slot.weapon.projectile.speed * slot.weapon.projectile.lifetime;
+          const r = slot.weapon.projectile.speed * slot.weapon.projectile.lifetime + targetHitboxRadius;
           if (r > maxWeaponRange) maxWeaponRange = r;
         }
       }
@@ -2145,7 +2171,7 @@ function setup() {
       const STANDOFF_RANGE_MULT = 1.5;
       aimAndShoot(ship, target, STANDOFF_RANGE_MULT);
 
-      const targetMaxRange = Math.max(baseWeaponRange * STANDOFF_RANGE_MULT * 0.92, effectiveWeaponRange * STANDOFF_RANGE_MULT * 0.92);
+      const targetMaxRange = Math.max(baseWeaponRange * STANDOFF_RANGE_MULT * 0.92, effectiveWeaponRange * STANDOFF_RANGE_MULT * 0.92) + targetHitboxRadius;
       const targetMinRange = baseWeaponRange * 0.72;
 
       if (dist > targetMaxRange) {
