@@ -445,7 +445,7 @@ const ENGINES_DATA = [
   {
     name: 'thruster',
     pivot: {x: 3, y: 1},
-    thrust: 100, // kN
+    thrust: 50, // kN
     mass: 1500, // kg
     reversible: true,
     img: "img/engines/Thruster.png",
@@ -455,7 +455,7 @@ const ENGINES_DATA = [
   {
     name: 'turbo_thruster',
     pivot: {x: 1, y: 2},
-    thrust: 200, // kN
+    thrust: 100, // kN
     mass: 1500, // kg
     reversible: false,
     img: "img/engines/TurboThruster.png",

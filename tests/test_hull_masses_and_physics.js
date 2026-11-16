@@ -210,9 +210,9 @@ const bluePaint = FACTION_PAINTS[0];
 assert(stdEngine, 'Standard thruster must exist in ENGINES_DATA');
 assert(turboEngine, 'Turbo thruster must exist in ENGINES_DATA');
 assert.strictEqual(stdEngine.mass, 1500, 'Standard thruster mass must be 1500 kg');
-assert.strictEqual(stdEngine.thrust, 100, 'Standard thruster thrust must be 100 kN');
+assert.strictEqual(stdEngine.thrust, 50, 'Standard thruster thrust must be 50 kN');
 assert.strictEqual(turboEngine.mass, 1500, 'Turbo thruster mass must be 1500 kg');
-assert.strictEqual(turboEngine.thrust, 200, 'Turbo thruster thrust must be 200 kN');
+assert.strictEqual(turboEngine.thrust, 100, 'Turbo thruster thrust must be 100 kN');
 
 const timeToTurnAround = Math.PI / (TURN_RATE * 60);
 
