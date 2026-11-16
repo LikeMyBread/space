@@ -292,10 +292,10 @@ const HULLS_DATA = [
     mass: 8977, // kg
     pivot: {x: 17.5, y: 17},
     engine_mounts: [
-      {x: 14, y: 26},
-      {x: 19, y: 26}
+      {x: 10, y: 25},
+      {x: 23, y: 25}
     ],
-    engine_mount: {x: 14, y: 26},
+    engine_mount: {x: 10, y: 25},
     img: "img/ships/Boat.png",
     hullRadius: 8,
     shieldRadius: 20,

@@ -206,9 +206,9 @@ console.log('✓ Shadow engine mounts verified at (13, 27) and (18, 27)');
 assert(boatHull, 'Boat hull must exist in HULLS_DATA');
 assert(Array.isArray(boatHull.engine_mounts), 'Boat must have engine_mounts array');
 assert.strictEqual(boatHull.engine_mounts.length, 2, 'Boat must have exactly two engine mounts');
-assert.deepStrictEqual(boatHull.engine_mounts[0], { x: 14, y: 26 }, 'Boat engine mount 1 must be at (14, 26)');
-assert.deepStrictEqual(boatHull.engine_mounts[1], { x: 19, y: 26 }, 'Boat engine mount 2 must be at (19, 26)');
-console.log('✓ Boat engine mounts verified at (14, 26) and (19, 26)');
+assert.deepStrictEqual(boatHull.engine_mounts[0], { x: 10, y: 25 }, 'Boat engine mount 1 must be at (10, 25)');
+assert.deepStrictEqual(boatHull.engine_mounts[1], { x: 23, y: 25 }, 'Boat engine mount 2 must be at (23, 25)');
+console.log('✓ Boat engine mounts verified at (10, 25) and (23, 25)');
 
 // Verify single-engine hulls
 const singleEngineHulls = HULLS_DATA.filter((h) => h.name !== 'Shadow' && h.name !== 'Boat');
@@ -331,7 +331,7 @@ console.log('✓ Cutting thrust turns off both engines even while turning (left=
 
 console.log('\n--- 4. Testing Boat Hull Turning Visuals ---');
 const testBoat = buildShip(boatHull, stdEngine, bluePaint);
-// Sprites: index 0 is at x:14 (left, 14 < 17.5), index 1 is at x:19 (right, 19 > 17.5)
+// Sprites: index 0 is at x:10 (left, 10 < 17.5), index 1 is at x:23 (right, 23 > 17.5)
 const boatLeftSprite = testBoat.data.engineLitSprites[0];
 const boatRightSprite = testBoat.data.engineLitSprites[1];
 
