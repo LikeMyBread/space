@@ -217,10 +217,13 @@ assert.strictEqual(turboEngine.thrust, 100, 'Turbo thruster thrust must be 100 k
 const timeToTurnAround = Math.PI / (TURN_RATE * 60);
 
 for (const hull of HULLS_DATA) {
+  const engineMounts = (hull.engine_mounts && hull.engine_mounts.length > 0) ? hull.engine_mounts : (hull.engine_mount ? [hull.engine_mount] : []);
+  const engineCount = engineMounts.length || 1;
+
   // Test with standard thruster
   const stdShip = buildShip(hull, stdEngine, bluePaint);
-  const totalMassStd = hull.mass + stdEngine.mass;
-  const expectedAccelStd = (stdEngine.thrust * 1000) / totalMassStd;
+  const totalMassStd = hull.mass + stdEngine.mass * engineCount;
+  const expectedAccelStd = (stdEngine.thrust * engineCount * 1000) / totalMassStd;
   const expectedMaxSpeedStd = expectedAccelStd * ACCEL_LIMIT;
   const expectedDistToStopStd = (expectedMaxSpeedStd * expectedMaxSpeedStd) / (2 * expectedAccelStd);
   const expectedStoppingDistStd = (expectedMaxSpeedStd * timeToTurnAround) + expectedDistToStopStd;
@@ -240,8 +243,8 @@ for (const hull of HULLS_DATA) {
 
   // Test with turbo thruster
   const turboShip = buildShip(hull, turboEngine, bluePaint);
-  const totalMassTurbo = hull.mass + turboEngine.mass;
-  const expectedAccelTurbo = (turboEngine.thrust * 1000) / totalMassTurbo;
+  const totalMassTurbo = hull.mass + turboEngine.mass * engineCount;
+  const expectedAccelTurbo = (turboEngine.thrust * engineCount * 1000) / totalMassTurbo;
   const expectedMaxSpeedTurbo = expectedAccelTurbo * ACCEL_LIMIT;
 
   assert(
@@ -328,7 +331,8 @@ bodySelect.value = 'Shadow';
 bodySelect.dispatch('change');
 assert.strictEqual(playerShip.data.hull.name, 'Shadow');
 
-const expectedShadowAccel = (playerShip.data.engine.thrust * 1000) / (shadowHull.mass + playerShip.data.engine.mass);
+const shadowEngineCount = (shadowHull.engine_mounts && shadowHull.engine_mounts.length) || 1;
+const expectedShadowAccel = (playerShip.data.engine.thrust * shadowEngineCount * 1000) / (shadowHull.mass + playerShip.data.engine.mass * shadowEngineCount);
 const expectedShadowMaxSpeed = expectedShadowAccel * ACCEL_LIMIT;
 
 assert(
@@ -339,7 +343,7 @@ assert(
   Math.abs(playerShip.data.maxSpeed - expectedShadowMaxSpeed) < 1e-6,
   'Player ship maxSpeed must update to Shadow maxSpeed'
 );
-const expectedShadowTotalMass = (shadowHull.mass + playerShip.data.engine.mass).toLocaleString() + ' kg';
+const expectedShadowTotalMass = (shadowHull.mass + playerShip.data.engine.mass * shadowEngineCount).toLocaleString() + ' kg';
 assert.strictEqual(elements['status-mass-val'].textContent, expectedShadowTotalMass);
 console.log(`✓ Switching player to Shadow updates accel to ${playerShip.data.accel.toFixed(2)} and status panel to ${expectedShadowTotalMass}`);
 

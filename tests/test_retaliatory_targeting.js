@@ -338,6 +338,9 @@ console.log('--- 5. Testing Full Projectile Collision Loop in gameLoop() ---');
 projectiles.length = 0;
 if (!global.window.ships.includes(shipA)) global.window.ships.push(shipA);
 // Place shipA at (500, 500) with full shield
+shipA.sprite.position.set(500, 500);
+shipA.data.vx = 0;
+shipA.data.vy = 0;
 shipA.data.shield = 10;
 shipA.data.hullHealth = 10;
 shipA.data.isDestroyed = false;

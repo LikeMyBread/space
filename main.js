@@ -253,6 +253,9 @@ const HULLS_DATA = [
     name: 'Anvil',
     mass: 1416, // kg
     pivot: {x: 15.5, y: 16.5},
+    engine_mounts: [
+      {x: 15, y: 24}
+    ],
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Anvil.png",
     hullRadius: 7,
@@ -269,6 +272,9 @@ const HULLS_DATA = [
     name: 'Avocado',
     mass: 3804, // kg
     pivot: {x: 15.5, y: 20},
+    engine_mounts: [
+      {x: 15, y: 28}
+    ],
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Avocado.png",
     hullRadius: 7,
@@ -285,7 +291,11 @@ const HULLS_DATA = [
     name: 'Boat',
     mass: 8977, // kg
     pivot: {x: 17.5, y: 17},
-    engine_mount: {x: 16, y: 28},
+    engine_mounts: [
+      {x: 14, y: 26},
+      {x: 19, y: 26}
+    ],
+    engine_mount: {x: 14, y: 26},
     img: "img/ships/Boat.png",
     hullRadius: 8,
     shieldRadius: 20,
@@ -306,6 +316,9 @@ const HULLS_DATA = [
     name: 'Crab',
     mass: 2119, // kg
     pivot: {x: 16.5, y: 18},
+    engine_mounts: [
+      {x: 15, y: 25}
+    ],
     engine_mount: {x: 15, y: 25},
     img: "img/ships/Crab.png",
     hullRadius: 7,
@@ -327,6 +340,9 @@ const HULLS_DATA = [
     name: 'Delta',
     mass: 906, // kg
     pivot: {x: 15.5, y: 18},
+    engine_mounts: [
+      {x: 14, y: 25}
+    ],
     engine_mount: {x: 14, y: 25},
     img: "img/ships/Delta.png",
     hullRadius: 6,
@@ -343,6 +359,9 @@ const HULLS_DATA = [
     name: 'Hammer',
     mass: 1743, // kg
     pivot: {x: 16.5, y: 15},
+    engine_mounts: [
+      {x: 15, y: 24}
+    ],
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Hammer.png",
     hullRadius: 8,
@@ -374,6 +393,9 @@ const HULLS_DATA = [
     name: 'Protogon',
     mass: 3643, // kg
     pivot: {x: 11, y: 13},
+    engine_mounts: [
+      {x: 9, y: 20}
+    ],
     engine_mount: {x: 9, y: 20},
     img: "img/ships/Protogon.png",
     hullRadius: 7,
@@ -390,7 +412,11 @@ const HULLS_DATA = [
     name: 'Shadow',
     mass: 2767, // kg
     pivot: {x: 15.5, y: 17},
-    engine_mount: {x: 15, y: 28},
+    engine_mounts: [
+      {x: 13, y: 27},
+      {x: 18, y: 27}
+    ],
+    engine_mount: {x: 13, y: 27},
     img: "img/ships/Shadow.png",
     hullRadius: 10,
     shieldRadius: 20,
@@ -411,6 +437,9 @@ const HULLS_DATA = [
     name: 'Shuttle',
     mass: 2050, // kg
     pivot: {x: 14.5, y: 16},
+    engine_mounts: [
+      {x: 14, y: 26}
+    ],
     engine_mount: {x: 14, y: 26},
     img: "img/ships/Shuttle.png",
     hullRadius: 6,
@@ -427,6 +456,9 @@ const HULLS_DATA = [
     name: 'Skate',
     mass: 1865, // kg
     pivot: {x: 15.5, y: 14},
+    engine_mounts: [
+      {x: 15, y: 23}
+    ],
     engine_mount: {x: 15, y: 23},
     img: "img/ships/Skate.png",
     hullRadius: 7,
@@ -506,6 +538,16 @@ function preloadRawImages(paths) {
   );
 }
 
+function getEngineMounts(hull) {
+  if (hull && Array.isArray(hull.engine_mounts) && hull.engine_mounts.length > 0) {
+    return hull.engine_mounts;
+  }
+  if (hull && hull.engine_mount) {
+    return [hull.engine_mount];
+  }
+  return [];
+}
+
 // In-memory cache for baked static ship textures: (hull + engine + paintColor + weapons)
 const bakedTextureCache = new Map();
 
@@ -521,14 +563,21 @@ function getBakedShipTexture(hull, engineData, paintColor, weapons = []) {
 
   const hullImg = rawImages[hull.img];
   const engineImg = rawImages[engineData.img];
+  const engineMounts = getEngineMounts(hull);
 
-  const ex = hull.engine_mount.x - engineData.pivot.x;
-  const ey = hull.engine_mount.y - engineData.pivot.y;
+  let minX = 0;
+  let minY = 0;
+  let maxX = hullImg.width;
+  let maxY = hullImg.height;
 
-  let minX = Math.min(0, ex);
-  let minY = Math.min(0, ey);
-  let maxX = Math.max(hullImg.width, ex + engineImg.width);
-  let maxY = Math.max(hullImg.height, ey + engineImg.height);
+  for (const mount of engineMounts) {
+    const ex = mount.x - engineData.pivot.x;
+    const ey = mount.y - engineData.pivot.y;
+    minX = Math.min(minX, ex);
+    minY = Math.min(minY, ey);
+    maxX = Math.max(maxX, ex + engineImg.width);
+    maxY = Math.max(maxY, ey + engineImg.height);
+  }
 
   const weaponDrawList = weapons.map((slot) => {
     const wImg = rawImages[slot.weapon.img];
@@ -577,8 +626,12 @@ function getBakedShipTexture(hull, engineData, paintColor, weapons = []) {
   }
   ctx.putImageData(imgData, 0, 0);
 
-  // 3. Draw static engine on top at mount position
-  ctx.drawImage(engineImg, ex + offsetX, ey + offsetY);
+  // 3. Draw static engine(s) on top at mount positions
+  for (const mount of engineMounts) {
+    const ex = mount.x - engineData.pivot.x;
+    const ey = mount.y - engineData.pivot.y;
+    ctx.drawImage(engineImg, ex + offsetX, ey + offsetY);
+  }
 
   // 4. Draw weapons with onTop === true (on top of hull and engine)
   for (const w of weaponDrawList) {
@@ -591,6 +644,135 @@ function getBakedShipTexture(hull, engineData, paintColor, weapons = []) {
   const result = { texture, offsetX, offsetY, canvas };
   bakedTextureCache.set(cacheKey, result);
   return result;
+}
+
+function updateShipEngineVisuals(ship, thrustingState) {
+  if (!ship || !ship.data || !ship.data.engineLitSprites) return;
+  const data = ship.data;
+  const hull = data.hull;
+  const sprites = data.engineLitSprites;
+  if (!sprites || sprites.length === 0) return;
+
+  const isThrusting = (thrustingState !== undefined)
+    ? !!thrustingState
+    : (data.engineLitSprite ? !!data.engineLitSprite._isThrusting : false);
+
+  if (!isThrusting || data.isDisabled || data.isDestroyed) {
+    for (let i = 0; i < sprites.length; i++) {
+      sprites[i].visible = false;
+    }
+    return;
+  }
+
+  // Single-engine ships always show the firing graphic when thrusting
+  if (sprites.length < 2) {
+    sprites[0].visible = true;
+    return;
+  }
+
+  // For multi-engine ships: identify turning direction ('left', 'right', or null)
+  let turnDir = data._turnDirection || data.turnDirection || null;
+  if (!turnDir && ship.sprite) {
+    if (typeof playerShip !== 'undefined' && ship === playerShip) {
+      const left = typeof isTurningLeft === 'function' && isTurningLeft();
+      const right = typeof isTurningRight === 'function' && isTurningRight();
+      if (left && !right) turnDir = 'left';
+      else if (right && !left) turnDir = 'right';
+    } else if (data._prevRotation !== undefined) {
+      const dRot = normalizeAngle(ship.sprite.rotation - data._prevRotation);
+      if (dRot < -0.0001) turnDir = 'left';
+      else if (dRot > 0.0001) turnDir = 'right';
+    }
+  }
+
+  const mounts = getEngineMounts(hull);
+  const pivotX = (hull && hull.pivot) ? hull.pivot.x : 0;
+
+  for (let i = 0; i < sprites.length; i++) {
+    const mount = mounts[i] || { x: pivotX };
+    const isLeft = (mount.x < pivotX) || (sprites.length === 2 && i === 0 && mounts[1] && mount.x <= mounts[1].x);
+    const isRight = (mount.x > pivotX) || (sprites.length === 2 && i === 1 && mounts[0] && mount.x >= mounts[0].x);
+
+    if (turnDir === 'left' && isLeft) {
+      // The engine on the side the ship is turning toward does not show the firing graphic
+      sprites[i].visible = false;
+    } else if (turnDir === 'right' && isRight) {
+      // The engine on the side the ship is turning toward does not show the firing graphic
+      sprites[i].visible = false;
+    } else {
+      sprites[i].visible = true;
+    }
+  }
+}
+
+function createEngineLitProxy(shipObj, sprites) {
+  let isThrusting = false;
+  const primary = sprites[0];
+  return new Proxy(primary, {
+    get(target, prop, receiver) {
+      if (prop === 'visible') {
+        return isThrusting;
+      }
+      if (prop === '_isThrusting') {
+        return isThrusting;
+      }
+      if (prop === '_sprites') {
+        return sprites;
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+    set(target, prop, value, receiver) {
+      if (prop === 'visible') {
+        isThrusting = !!value;
+        updateShipEngineVisuals(shipObj, isThrusting);
+        return true;
+      }
+      if (prop === '_isThrusting') {
+        isThrusting = !!value;
+        return true;
+      }
+      if (prop === 'texture' || prop === 'tint') {
+        for (const s of sprites) {
+          s[prop] = value;
+        }
+      }
+      return Reflect.set(target, prop, value, receiver);
+    }
+  });
+}
+
+function createEngineReverseProxy(shipObj, sprites) {
+  let isReversing = false;
+  const primary = sprites[0];
+  return new Proxy(primary, {
+    get(target, prop, receiver) {
+      if (prop === 'visible') {
+        return isReversing;
+      }
+      if (prop === '_isReversing') {
+        return isReversing;
+      }
+      if (prop === '_sprites') {
+        return sprites;
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+    set(target, prop, value, receiver) {
+      if (prop === 'visible') {
+        isReversing = !!value;
+        for (const s of sprites) {
+          s.visible = isReversing;
+        }
+        return true;
+      }
+      if (prop === 'texture' || prop === 'tint') {
+        for (const s of sprites) {
+          s[prop] = value;
+        }
+      }
+      return Reflect.set(target, prop, value, receiver);
+    }
+  });
 }
 
 let nextShipId = 1;
@@ -615,30 +797,39 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
   newShip.addChild(staticSprite);
   newShip.pivot.set(hull.pivot.x, hull.pivot.y);
 
-  let engineLit = new PIXI.Sprite(
-    PIXI.Assets.get(engineData.imgLit)
-  );
-  engineLit.pivot.set(engineData.pivot.x, engineData.pivot.y);
-  engineLit.position.set(hull.engine_mount.x, hull.engine_mount.y);
-  newShip.addChild(engineLit);
-  engineLit.visible = false;
+  const engineMounts = getEngineMounts(hull);
+  const engineCount = engineMounts.length || 1;
 
-  let engineReverse = null;
-  if (engineData.reversible) {
-    engineReverse = new PIXI.Sprite(
-      PIXI.Assets.get(engineData.imgReverse)
-    );
-    engineReverse.pivot.set(engineData.pivot.x, engineData.pivot.y);
-    engineReverse.position.set(hull.engine_mount.x, hull.engine_mount.y);
-    newShip.addChild(engineReverse);
-    engineReverse.visible = false;
-  }
+  const engineLitSprites = engineMounts.map((mount) => {
+    const sprite = new PIXI.Sprite(PIXI.Assets.get(engineData.imgLit));
+    sprite.pivot.set(engineData.pivot.x, engineData.pivot.y);
+    sprite.position.set(mount.x, mount.y);
+    newShip.addChild(sprite);
+    sprite.visible = false;
+    return sprite;
+  });
 
-  const accel = (engineData.thrust * 1000) / (hull.mass + engineData.mass); // m/s/s
+  const engineReverseSprites = engineData.reversible ? engineMounts.map((mount) => {
+    const sprite = new PIXI.Sprite(PIXI.Assets.get(engineData.imgReverse));
+    sprite.pivot.set(engineData.pivot.x, engineData.pivot.y);
+    sprite.position.set(mount.x, mount.y);
+    newShip.addChild(sprite);
+    sprite.visible = false;
+    return sprite;
+  }) : [];
+
+  const totalEngineMass = engineData.mass * engineCount;
+  const totalThrust = engineData.thrust * engineCount;
+
+  const accel = (totalThrust * 1000) / (hull.mass + totalEngineMass); // m/s/s
   const maxSpeed = accel * ACCEL_LIMIT; // px/s
   const timeToTurnAround = Math.PI / (TURN_RATE * 60); // seconds to turn 180 degrees
   const distanceRequiredToStop = (maxSpeed * maxSpeed) / (2 * accel); // px
   const stoppingDistance = (maxSpeed * timeToTurnAround) + distanceRequiredToStop; // px
+
+  const shipObj = { sprite: newShip, data: null };
+  const engineLit = createEngineLitProxy(shipObj, engineLitSprites);
+  const engineReverse = engineReverseSprites.length > 0 ? createEngineReverseProxy(shipObj, engineReverseSprites) : null;
 
   const newData = {
     id: nextShipId++,
@@ -669,6 +860,8 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     paint: paintColor,
     weapons,
     staticSprite,
+    engineLitSprites,
+    engineReverseSprites,
     engineLitSprite: engineLit,
     engineReverseSprite: engineReverse,
     bakedCanvas: baked.canvas,
@@ -683,7 +876,21 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     formationOffset: { x: 0, y: FORMATION_DISTANCE },
   };
 
-  return { sprite: newShip, data: newData };
+  let _turnDir = null;
+  Object.defineProperty(newData, 'turnDirection', {
+    get() { return _turnDir; },
+    set(val) {
+      _turnDir = val;
+      if (newData.engineLitSprite && newData.engineLitSprite._isThrusting) {
+        updateShipEngineVisuals(shipObj, true);
+      }
+    },
+    configurable: true,
+    enumerable: true,
+  });
+
+  shipObj.data = newData;
+  return shipObj;
 }
 
 // Hexagonal Grid and Fleet Formation System
@@ -1206,7 +1413,9 @@ function setup() {
     }
     if (statusSpeedVal) statusSpeedVal.textContent = `${maxSpeed} px/s`;
     if (statusMassVal && data.hull && data.engine) {
-      const totalMass = data.hull.mass + data.engine.mass;
+      const mounts = getEngineMounts(data.hull);
+      const engineCount = mounts.length || 1;
+      const totalMass = data.hull.mass + data.engine.mass * engineCount;
       statusMassVal.textContent = `${totalMass.toLocaleString()} kg`;
     }
 
@@ -1812,8 +2021,14 @@ function setup() {
       : (ship.data && ship.data.combatStrategy === 'standoff' ? 1.5 : 1.0);
     const { aimAngle, inRange, interceptTime, maxRange } = getLeadSolution(ship, target, mult);
     const angleDiff = normalizeAngle(aimAngle - ship.sprite.rotation);
+    const turnAmount = Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff));
 
-    ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + Math.max(-TURN_RATE, Math.min(TURN_RATE, angleDiff)));
+    ship.sprite.rotation = normalizeAngle(ship.sprite.rotation + turnAmount);
+    if (ship && ship.data) {
+      if (turnAmount < -0.0001) ship.data.turnDirection = 'left';
+      else if (turnAmount > 0.0001) ship.data.turnDirection = 'right';
+      else ship.data.turnDirection = null;
+    }
 
     // Recompute angle difference after turning this frame
     const remainingDiff = Math.abs(normalizeAngle(aimAngle - ship.sprite.rotation));
@@ -1830,6 +2045,9 @@ function setup() {
     if (!ship || !ship.data || !ship.sprite || ship.data.isDestroyed) return;
     const shipData = ship.data;
     const shipSprite = ship.sprite;
+
+    shipData._prevRotation = shipSprite.rotation;
+    shipData.turnDirection = null;
 
     const maxA = shipData.maxHullHealth || shipData.maxArmor || 10;
     if (shipData.hullHealth <= maxA * DISABLED_ARMOR_THRESHOLD) {
@@ -2351,6 +2569,8 @@ function setup() {
 
     shipSprite.x -= (playerShip.data.vx - shipData.vx) * dt || 0;
     shipSprite.y -= (playerShip.data.vy - shipData.vy) * dt || 0;
+
+    updateShipEngineVisuals(ship);
   }
 
   function updatePlayerShipConfig({ hull, engine, paint, combatStrategy }) {
@@ -2379,8 +2599,13 @@ function setup() {
     const currentEngine = playerShip.data.engine;
     const currentPaint = playerShip.data.paint;
 
+    const currentEngineMounts = getEngineMounts(currentHull);
+    const currentEngineCount = currentEngineMounts.length || 1;
+    const totalEngineMass = currentEngine.mass * currentEngineCount;
+    const totalThrust = currentEngine.thrust * currentEngineCount;
+
     // Recalculate acceleration and stopping distance metrics
-    playerShip.data.accel = (currentEngine.thrust * 1000) / (currentHull.mass + currentEngine.mass);
+    playerShip.data.accel = (totalThrust * 1000) / (currentHull.mass + totalEngineMass);
     const maxSpeed = playerShip.data.accel * ACCEL_LIMIT;
     const timeToTurnAround = Math.PI / (TURN_RATE * 60);
     const distanceRequiredToStop = (maxSpeed * maxSpeed) / (2 * playerShip.data.accel);
@@ -2405,32 +2630,48 @@ function setup() {
     playerShip.data.bakedOffsetX = baked.offsetX;
     playerShip.data.bakedOffsetY = baked.offsetY;
 
-    // Update lit flame sprite
-    const litTexture = PIXI.Assets.get(currentEngine.imgLit);
-    playerShip.data.engineLitSprite.texture = litTexture;
-    playerShip.data.engineLitSprite.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
-    playerShip.data.engineLitSprite.position.set(currentHull.engine_mount.x, currentHull.engine_mount.y);
-
-    // Update reverse thruster flame sprite
-    if (currentEngine.reversible) {
-      const reverseTexture = PIXI.Assets.get(currentEngine.imgReverse);
-      if (!playerShip.data.engineReverseSprite) {
-        const revSprite = new PIXI.Sprite(reverseTexture);
-        playerShip.sprite.addChild(revSprite);
-        playerShip.data.engineReverseSprite = revSprite;
-      } else {
-        playerShip.data.engineReverseSprite.texture = reverseTexture;
-      }
-      playerShip.data.engineReverseSprite.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
-      playerShip.data.engineReverseSprite.position.set(currentHull.engine_mount.x, currentHull.engine_mount.y);
-      playerShip.data.engineReverseSprite.visible = false;
-    } else {
-      if (playerShip.data.engineReverseSprite) {
-        playerShip.data.engineReverseSprite.visible = false;
-        playerShip.sprite.removeChild(playerShip.data.engineReverseSprite);
-        playerShip.data.engineReverseSprite = null;
+    // Clean up old engine sprites from player container
+    if (playerShip.data.engineLitSprites) {
+      for (const s of playerShip.data.engineLitSprites) {
+        playerShip.sprite.removeChild(s);
       }
     }
+    if (playerShip.data.engineReverseSprites) {
+      for (const s of playerShip.data.engineReverseSprites) {
+        playerShip.sprite.removeChild(s);
+      }
+    }
+
+    // Re-create engine lit sprites
+    const litTexture = PIXI.Assets.get(currentEngine.imgLit);
+    const newLitSprites = currentEngineMounts.map((mount) => {
+      const s = new PIXI.Sprite(litTexture);
+      s.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
+      s.position.set(mount.x, mount.y);
+      s.visible = false;
+      playerShip.sprite.addChild(s);
+      return s;
+    });
+    playerShip.data.engineLitSprites = newLitSprites;
+    playerShip.data.engineLitSprite = createEngineLitProxy(playerShip, newLitSprites);
+
+    // Re-create reverse thruster flame sprites if reversible
+    let newRevSprites = [];
+    if (currentEngine.reversible) {
+      const reverseTexture = PIXI.Assets.get(currentEngine.imgReverse);
+      newRevSprites = currentEngineMounts.map((mount) => {
+        const s = new PIXI.Sprite(reverseTexture);
+        s.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
+        s.position.set(mount.x, mount.y);
+        s.visible = false;
+        playerShip.sprite.addChild(s);
+        return s;
+      });
+      playerShip.data.engineReverseSprite = createEngineReverseProxy(playerShip, newRevSprites);
+    } else {
+      playerShip.data.engineReverseSprite = null;
+    }
+    playerShip.data.engineReverseSprites = newRevSprites;
 
     updatePlayerStatusUI();
   }
@@ -3113,26 +3354,54 @@ function setup() {
       );
 
       // Draw lit thruster flame if active
-      if (targetShip.data.engineLitSprite && targetShip.data.engineLitSprite.visible && engineData) {
+      if (engineData) {
         const litImg = rawImages[engineData.imgLit];
         if (litImg) {
-          targetCtx.drawImage(
-            litImg,
-            hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
-            hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
-          );
+          const mounts = getEngineMounts(hull);
+          if (targetShip.data.engineLitSprites && targetShip.data.engineLitSprites.length) {
+            targetShip.data.engineLitSprites.forEach((sprite, idx) => {
+              if (sprite.visible) {
+                const m = mounts[idx] || hull.engine_mount;
+                targetCtx.drawImage(
+                  litImg,
+                  m.x - hull.pivot.x - engineData.pivot.x,
+                  m.y - hull.pivot.y - engineData.pivot.y
+                );
+              }
+            });
+          } else if (targetShip.data.engineLitSprite && targetShip.data.engineLitSprite.visible) {
+            targetCtx.drawImage(
+              litImg,
+              hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
+              hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
+            );
+          }
         }
       }
 
       // Draw reverse thruster flame if active
-      if (targetShip.data.engineReverseSprite && targetShip.data.engineReverseSprite.visible && engineData) {
+      if (engineData && engineData.reversible) {
         const revImg = rawImages[engineData.imgReverse];
         if (revImg) {
-          targetCtx.drawImage(
-            revImg,
-            hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
-            hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
-          );
+          const mounts = getEngineMounts(hull);
+          if (targetShip.data.engineReverseSprites && targetShip.data.engineReverseSprites.length) {
+            targetShip.data.engineReverseSprites.forEach((sprite, idx) => {
+              if (sprite.visible) {
+                const m = mounts[idx] || hull.engine_mount;
+                targetCtx.drawImage(
+                  revImg,
+                  m.x - hull.pivot.x - engineData.pivot.x,
+                  m.y - hull.pivot.y - engineData.pivot.y
+                );
+              }
+            });
+          } else if (targetShip.data.engineReverseSprite && targetShip.data.engineReverseSprite.visible) {
+            targetCtx.drawImage(
+              revImg,
+              hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
+              hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
+            );
+          }
         }
       }
 
@@ -3353,12 +3622,14 @@ function setup() {
         playerShip.data.vy = 0;
       }
     } else {
-      if (isTurningLeft()) {
+      if (isTurningLeft() && !isTurningRight()) {
         playerShip.sprite.rotation -= TURN_RATE;
-      }
-
-      if (isTurningRight()) {
+        playerShip.data.turnDirection = 'left';
+      } else if (isTurningRight() && !isTurningLeft()) {
         playerShip.sprite.rotation += TURN_RATE;
+        playerShip.data.turnDirection = 'right';
+      } else {
+        playerShip.data.turnDirection = null;
       }
 
       if (isThrusting()) {
@@ -3372,6 +3643,7 @@ function setup() {
       } else if (playerShip.data.engineLitSprite && playerShip.data.engineLitSprite.visible) {
         playerShip.data.engineLitSprite.visible = false;
       }
+      updateShipEngineVisuals(playerShip);
 
       if (isReversing() && playerShip.data.engine.reversible) {
         const newSpeed = applyReverseThrust(playerShip, delta, ACCEL_LIMIT);
@@ -3568,6 +3840,7 @@ function setup() {
       }
 
       // Formation offset relative to the formation leader based on the hexagonal grid
+      shipData._prevRotation = shipSprite.rotation;
       const offset = shipData.formationOffset || { x: 0, y: FORMATION_DISTANCE };
       const targetX = leader.sprite.x + offset.x;
       const targetY = leader.sprite.y + offset.y;
@@ -3770,6 +4043,8 @@ function setup() {
 
       shipSprite.x -= (playerShip.data.vx - shipData.vx) * delta * (60 / 1000) || 0;
       shipSprite.y -= (playerShip.data.vy - shipData.vy) * delta * (60 / 1000) || 0;
+
+      updateShipEngineVisuals(ship);
     }
 
     // Derelict ship does not join in the fight but remains motionless in space
