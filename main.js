@@ -251,7 +251,7 @@ const WEAPONS_DATA = {
 const HULLS_DATA = [
   {
     name: 'Anvil',
-    mass: 15000, // kg
+    mass: 1416, // kg
     pivot: {x: 15.5, y: 16.5},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Anvil.png",
@@ -267,7 +267,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Avocado',
-    mass: 11000, // kg
+    mass: 3804, // kg
     pivot: {x: 15.5, y: 20},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Avocado.png",
@@ -283,7 +283,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Boat',
-    mass: 25000, // kg
+    mass: 8977, // kg
     pivot: {x: 17.5, y: 17},
     engine_mount: {x: 16, y: 28},
     img: "img/ships/Boat.png",
@@ -304,7 +304,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Crab',
-    mass: 20000, // kg
+    mass: 2119, // kg
     pivot: {x: 16.5, y: 18},
     engine_mount: {x: 15, y: 25},
     img: "img/ships/Crab.png",
@@ -325,7 +325,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Delta',
-    mass: 7000, // kg
+    mass: 906, // kg
     pivot: {x: 15.5, y: 18},
     engine_mount: {x: 14, y: 25},
     img: "img/ships/Delta.png",
@@ -341,7 +341,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Hammer',
-    mass: 22000, // kg
+    mass: 1743, // kg
     pivot: {x: 16.5, y: 15},
     engine_mount: {x: 15, y: 24},
     img: "img/ships/Hammer.png",
@@ -372,7 +372,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Protogon',
-    mass: 20000, // kg
+    mass: 3643, // kg
     pivot: {x: 11, y: 13},
     engine_mount: {x: 9, y: 20},
     img: "img/ships/Protogon.png",
@@ -388,7 +388,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Shadow',
-    mass: 27000, // kg
+    mass: 2767, // kg
     pivot: {x: 15.5, y: 17},
     engine_mount: {x: 15, y: 28},
     img: "img/ships/Shadow.png",
@@ -409,7 +409,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Shuttle',
-    mass: 15000, // kg
+    mass: 2050, // kg
     pivot: {x: 14.5, y: 16},
     engine_mount: {x: 14, y: 26},
     img: "img/ships/Shuttle.png",
@@ -425,7 +425,7 @@ const HULLS_DATA = [
   },
   {
     name: 'Skate',
-    mass: 18000, // kg
+    mass: 1865, // kg
     pivot: {x: 15.5, y: 14},
     engine_mount: {x: 15, y: 23},
     img: "img/ships/Skate.png",
@@ -445,8 +445,8 @@ const ENGINES_DATA = [
   {
     name: 'thruster',
     pivot: {x: 3, y: 1},
-    thrust: 250, // kN
-    mass: 3500, // kg
+    thrust: 100, // kN
+    mass: 1500, // kg
     reversible: true,
     img: "img/engines/Thruster.png",
     imgLit: "img/engines/Thruster_lit.png",
@@ -455,8 +455,8 @@ const ENGINES_DATA = [
   {
     name: 'turbo_thruster',
     pivot: {x: 1, y: 2},
-    thrust: 500, // kN
-    mass: 3500, // kg
+    thrust: 200, // kN
+    mass: 1500, // kg
     reversible: false,
     img: "img/engines/TurboThruster.png",
     imgLit: "img/engines/TurboThruster_lit.png",

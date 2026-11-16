@@ -177,16 +177,16 @@ setup();
 
 console.log('--- 1. Testing HULLS_DATA Mass Definitions ---');
 const expectedMasses = {
-  'Anvil': 15000,
-  'Avocado': 11000,
-  'Boat': 25000,
-  'Crab': 20000,
-  'Delta': 7000,
-  'Hammer': 22000,
-  'Protogon': 20000,
-  'Shadow': 27000,
-  'Shuttle': 15000,
-  'Skate': 18000,
+  'Anvil': 1416,
+  'Avocado': 3804,
+  'Boat': 8977,
+  'Crab': 2119,
+  'Delta': 906,
+  'Hammer': 1743,
+  'Protogon': 3643,
+  'Shadow': 2767,
+  'Shuttle': 2050,
+  'Skate': 1865,
 };
 
 assert.strictEqual(HULLS_DATA.length, 10, 'Expected 10 ship hulls in HULLS_DATA');
@@ -209,6 +209,10 @@ const bluePaint = FACTION_PAINTS[0];
 
 assert(stdEngine, 'Standard thruster must exist in ENGINES_DATA');
 assert(turboEngine, 'Turbo thruster must exist in ENGINES_DATA');
+assert.strictEqual(stdEngine.mass, 1500, 'Standard thruster mass must be 1500 kg');
+assert.strictEqual(stdEngine.thrust, 100, 'Standard thruster thrust must be 100 kN');
+assert.strictEqual(turboEngine.mass, 1500, 'Turbo thruster mass must be 1500 kg');
+assert.strictEqual(turboEngine.thrust, 200, 'Turbo thruster thrust must be 200 kN');
 
 const timeToTurnAround = Math.PI / (TURN_RATE * 60);
 
@@ -256,41 +260,41 @@ for (const hull of HULLS_DATA) {
 
 console.log('\n--- 3. Testing Comparative Acceleration & Speed Rankings ---');
 const deltaHull = HULLS_DATA.find((h) => h.name === 'Delta');
-const shadowHull = HULLS_DATA.find((h) => h.name === 'Shadow');
+const boatHull = HULLS_DATA.find((h) => h.name === 'Boat');
 const anvilHull = HULLS_DATA.find((h) => h.name === 'Anvil');
 const shuttleHull = HULLS_DATA.find((h) => h.name === 'Shuttle');
+const shadowHull = HULLS_DATA.find((h) => h.name === 'Shadow');
 
 const deltaShip = buildShip(deltaHull, stdEngine, bluePaint);
-const shadowShip = buildShip(shadowHull, stdEngine, bluePaint);
+const boatShip = buildShip(boatHull, stdEngine, bluePaint);
 const anvilShip = buildShip(anvilHull, stdEngine, bluePaint);
 const shuttleShip = buildShip(shuttleHull, stdEngine, bluePaint);
 
-// Delta should be fastest / highest acceleration
+// Delta (906kg) should be fastest / highest acceleration
 assert(
   deltaShip.data.accel > anvilShip.data.accel,
   'Delta must have higher acceleration than Anvil'
 );
 assert(
-  deltaShip.data.maxSpeed > shadowShip.data.maxSpeed,
-  'Delta must have higher top speed than Shadow'
+  deltaShip.data.maxSpeed > boatShip.data.maxSpeed,
+  'Delta must have higher top speed than Boat'
 );
 
-// Shadow should be slowest / lowest acceleration
+// Boat (8977kg) should be slowest / lowest acceleration
 assert(
-  shadowShip.data.accel < anvilShip.data.accel,
-  'Shadow must have lower acceleration than Anvil'
+  boatShip.data.accel < anvilShip.data.accel,
+  'Boat must have lower acceleration than Anvil'
 );
 
-// Anvil and Shuttle have the same hull mass (15,000 kg)
-assert.strictEqual(
-  anvilShip.data.accel,
-  shuttleShip.data.accel,
-  'Anvil and Shuttle have the same mass and must have identical acceleration'
+// Anvil (1416kg) has higher acceleration than Shuttle (2050kg)
+assert(
+  anvilShip.data.accel > shuttleShip.data.accel,
+  'Anvil is lighter than Shuttle and must have higher acceleration'
 );
 
-console.log(`✓ Delta (lightest at 7,000kg) top speed: ${deltaShip.data.maxSpeed.toFixed(2)} px/s`);
-console.log(`✓ Shadow (heaviest at 27,000kg) top speed: ${shadowShip.data.maxSpeed.toFixed(2)} px/s`);
-console.log(`✓ Delta is ${(deltaShip.data.accel / shadowShip.data.accel).toFixed(2)}x more agile than Shadow`);
+console.log(`✓ Delta (lightest at 906kg) top speed: ${deltaShip.data.maxSpeed.toFixed(2)} px/s`);
+console.log(`✓ Boat (heaviest at 8,977kg) top speed: ${boatShip.data.maxSpeed.toFixed(2)} px/s`);
+console.log(`✓ Delta is ${(deltaShip.data.accel / boatShip.data.accel).toFixed(2)}x more agile than Boat`);
 console.log('✓ Acceleration and top speed rankings are correct');
 
 console.log('\n--- 4. Testing Player Customization Recalculations ---');
