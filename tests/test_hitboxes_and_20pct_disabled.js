@@ -281,19 +281,21 @@ updateNpcCombat(testShip, 1, 1/60, [testShip, playerShip]);
 assert.strictEqual(testShip.data.isDisabled, true, 'Ship with 15% armor must be disabled');
 
 // Player ship disabled at 20% armor in gameLoop
-playerShip.data.hullHealth = 2.0;
+const pMax = playerShip.data.maxHullHealth || 10;
+playerShip.data.hullHealth = pMax * 0.2;
 global.window.isGodMode = false;
 gameLoop(1);
 assert.strictEqual(playerShip.data.isDisabled, true, 'Player ship must become disabled at 20% armor');
-playerShip.data.hullHealth = 10;
+playerShip.data.hullHealth = pMax;
 playerShip.data.isDisabled = false;
 
 // Derelict ship disabled at 20% armor
 if (derelictShip) {
-  derelictShip.data.hullHealth = 2.0;
+  const dMax = derelictShip.data.maxHullHealth || 40;
+  derelictShip.data.hullHealth = dMax * 0.2;
   gameLoop(1);
   assert.strictEqual(derelictShip.data.isDisabled, true, 'Derelict ship must become disabled at 20% armor');
-  derelictShip.data.hullHealth = 10;
+  derelictShip.data.hullHealth = dMax;
   derelictShip.data.isDisabled = false;
 }
 

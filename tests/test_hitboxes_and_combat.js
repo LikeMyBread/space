@@ -214,12 +214,12 @@ console.log('3. Testing buildShip health defaults...');
 const shipA = buildShip();
 assert.strictEqual(shipA.data.shield, 10, 'Initial shield must be 10');
 assert.strictEqual(shipA.data.maxShield, 10, 'Initial maxShield must be 10');
-assert.strictEqual(shipA.data.hullHealth, 10, 'Initial hullHealth must be 10');
-assert.strictEqual(shipA.data.maxHullHealth, 10, 'Initial maxHullHealth must be 10');
-assert.strictEqual(shipA.data.armor, 10, 'Initial armor must be 10');
-assert.strictEqual(shipA.data.maxArmor, 10, 'Initial maxArmor must be 10');
+assert.strictEqual(shipA.data.hullHealth, shipA.data.hull.armor, 'Initial hullHealth must match hull armor');
+assert.strictEqual(shipA.data.maxHullHealth, shipA.data.hull.armor, 'Initial maxHullHealth must match hull armor');
+assert.strictEqual(shipA.data.armor, shipA.data.hull.armor, 'Initial armor must match hull armor');
+assert.strictEqual(shipA.data.maxArmor, shipA.data.hull.armor, 'Initial maxArmor must match hull armor');
 assert.strictEqual(shipA.data.shieldHitTimer, 0, 'Initial shieldHitTimer must be 0');
-console.log('✓ Ships initialized to 10 shield and 10 hull health');
+console.log('✓ Ships initialized to 10 shield and hull health matching hull armor');
 
 console.log('4. Testing checkSpeed with distance/speed squared...');
 const under = checkSpeed(30, 40, 100);
@@ -268,7 +268,7 @@ console.log('Proj1 sprite position:', proj1.sprite.x, proj1.sprite.y, 'shipId:',
 gameLoopFn(0);
 console.log('After gameLoop, target shield:', target.data.shield, 'proj count:', projectiles.length);
 assert.strictEqual(target.data.shield, 9, 'Shield should absorb 1 point of damage');
-assert.strictEqual(target.data.hullHealth, 10, 'Hull health should remain untouched at 10');
+assert.strictEqual(target.data.hullHealth, 40, 'Hull health should remain untouched at 40');
 assert.strictEqual(target.data.shieldHitTimer, 0.25, 'shieldHitTimer should be set to 0.25');
 assert.strictEqual(projectiles.length, 0, 'Projectile should be consumed upon collision');
 console.log('✓ Projectile at 15px absorbed by outer shield hitbox, reduced shield to 9, triggered shield effect');
@@ -318,7 +318,7 @@ global.app.stage.addChild(projPass.sprite);
 projectiles.push(projPass);
 
 gameLoopFn(0);
-assert.strictEqual(target.data.hullHealth, 10, 'Hull health should remain 10 because 15px > 6px');
+assert.strictEqual(target.data.hullHealth, 40, 'Hull health should remain 40 because 15px > 6px');
 assert.strictEqual(target.data.shieldHitTimer, 0, 'No shield effect when shields are down');
 assert.strictEqual(projectiles.length, 1, 'Projectile at 15px passes through outer hitbox when shields down');
 projectiles.pop();
@@ -340,8 +340,8 @@ global.app.stage.addChild(projHullHit.sprite);
 projectiles.push(projHullHit);
 
 gameLoopFn(0);
-assert.strictEqual(target.data.hullHealth, 9, 'Hull health should drop to 9');
-assert.strictEqual(target.data.armor, 9, 'Armor should be synced to 9');
+assert.strictEqual(target.data.hullHealth, 39, 'Hull health should drop to 39');
+assert.strictEqual(target.data.armor, 39, 'Armor should be synced to 39');
 assert.strictEqual(target.data.shieldHitTimer, 0, 'No shield effect when hull is hit');
 assert.strictEqual(projectiles.length, 0, 'Projectile consumed by hull hit');
 console.log('✓ With shields down, 15px passes through, 5px hits inner hull hitbox and damages hull health without shield circle');
@@ -361,17 +361,17 @@ assert.strictEqual(target.data.shield, 0, 'Shield delay finishes at 1.0s');
 // Advance 1 full second (delta = 60): shield should regenerate 0.5 points
 gameLoopFn(60);
 assert(Math.abs(target.data.shield - 0.5) < 0.001, `Shield should regenerate to 0.5 in 1 second, got ${target.data.shield}`);
-assert.strictEqual(target.data.hullHealth, 9, 'Hull health should NOT regenerate (remains 9)');
+assert.strictEqual(target.data.hullHealth, 39, 'Hull health should NOT regenerate (remains 39)');
 
 // Advance another 5 seconds (5 * 60 = 300 delta): 0.5 + 5 * 0.5 = 3.0 points
 gameLoopFn(300);
 assert(Math.abs(target.data.shield - 3.0) < 0.001, `Shield should regenerate to 3.0 after 5 more seconds, got ${target.data.shield}`);
-assert.strictEqual(target.data.hullHealth, 9, 'Hull health remains 9');
+assert.strictEqual(target.data.hullHealth, 39, 'Hull health remains 39');
 
 // Advance 20 more seconds: should clamp at maxShield (10)
 gameLoopFn(1200);
 assert.strictEqual(target.data.shield, 10, 'Shield should clamp at maxShield 10');
-assert.strictEqual(target.data.hullHealth, 9, 'Hull health remains 9');
+assert.strictEqual(target.data.hullHealth, 39, 'Hull health remains 39');
 console.log('✓ Shield regenerates at 0.5 pt/s up to maxShield; hull does not regenerate');
 
 console.log('10. Testing Target Monitor shield and armor readouts...');
@@ -387,11 +387,11 @@ assert(targetShieldBarEl, 'target-shield-bar element must exist');
 assert(targetArmorEl, 'target-armor-val element must exist');
 assert(targetArmorBarEl, 'target-armor-bar element must exist');
 
-// target currently has shield: 10, hullHealth: 9
+// target currently has shield: 10, hullHealth: 39 (Boat has 40 armor)
 assert.strictEqual(targetShieldEl.textContent, '10 / 10', 'Target shield text should be 10 / 10');
 assert.strictEqual(targetShieldBarEl.style.width, '100%', 'Target shield bar should be 100%');
-assert.strictEqual(targetArmorEl.textContent, '9 / 10', 'Target armor text should be 9 / 10');
-assert.strictEqual(targetArmorBarEl.style.width, '90%', 'Target armor bar should be 90%');
+assert.strictEqual(targetArmorEl.textContent, '39 / 40', 'Target armor text should be 39 / 40');
+assert.strictEqual(targetArmorBarEl.style.width, '97.5%', 'Target armor bar should be 97.5%');
 
 // Damage target shield to 5
 target.data.shield = 5;
@@ -399,22 +399,23 @@ gameLoopFn(0);
 assert.strictEqual(targetShieldEl.textContent, '5 / 10', 'Target shield text should be 5 / 10');
 assert.strictEqual(targetShieldBarEl.style.width, '50%', 'Target shield bar should be 50%');
 
-// Deplete shield to 0 and armor to 4
+// Deplete shield to 0 and armor to 16 (40% of 40)
 target.data.shield = 0;
-target.data.hullHealth = 4;
-target.data.armor = 4;
+target.data.hullHealth = 16;
+target.data.armor = 16;
 gameLoopFn(0);
 assert.strictEqual(targetShieldEl.textContent, '0 / 10', 'Target shield text should be 0 / 10');
 assert.strictEqual(targetShieldBarEl.style.width, '0%', 'Target shield bar should be 0%');
-assert.strictEqual(targetArmorEl.textContent, '4 / 10', 'Target armor text should be 4 / 10');
+assert.strictEqual(targetArmorEl.textContent, '16 / 40', 'Target armor text should be 16 / 40');
 assert.strictEqual(targetArmorBarEl.style.width, '40%', 'Target armor bar should be 40%');
 console.log('✓ Target monitor displays target shield and armor levels and updates bars dynamically');
 
 console.log('11. Testing partial block and projectile penetration...');
-// Reset target: shield = 2, hullHealth = 10, shieldDownDelay = 0
+// Reset target: shield = 2, hullHealth = 40, shieldDownDelay = 0
 target.data.shield = 2;
-target.data.hullHealth = 10;
-target.data.armor = 10;
+target.data.hullHealth = 40;
+target.data.armor = 40;
+target.data.isDisabled = false;
 target.data.shieldDownDelay = 0;
 
 // Fire a projectile with damage = 5 at distance 15px (within 20px shield radius, but outside 6px hull radius)
@@ -438,7 +439,7 @@ gameLoopFn(0);
 assert.strictEqual(target.data.shield, 0, 'Target shield should be drained to 0');
 assert.strictEqual(target.data.shieldDownDelay, 1.0, 'shieldDownDelay should be set to 1.0');
 assert.strictEqual(target.data.shieldHitTimer, 0.25, 'shield flare should trigger');
-assert.strictEqual(target.data.hullHealth, 10, 'Hull health untouched because projectile is at 15px > 6px');
+assert.strictEqual(target.data.hullHealth, 40, 'Hull health untouched because projectile is at 15px > 6px');
 // Projectile damage reduced by 2 (from 5 to 3)
 assert.strictEqual(penetratingProj.damage, 3, 'Projectile damage should be reduced to 3');
 assert.strictEqual(projectiles.length, 1, 'Projectile should continue flying (not destroyed)');
@@ -446,8 +447,8 @@ assert.strictEqual(projectiles.length, 1, 'Projectile should continue flying (no
 // Now the projectile moves forward to distance 5px (inside 6px hull radius)
 penetratingProj.sprite.position.set(200, 205);
 gameLoopFn(0);
-assert.strictEqual(target.data.hullHealth, 7, 'Hull health should drop by 3 (10 - 3 = 7)');
-assert.strictEqual(target.data.armor, 7, 'Armor should be synced to 7');
+assert.strictEqual(target.data.hullHealth, 37, 'Hull health should drop by 3 (40 - 3 = 37)');
+assert.strictEqual(target.data.armor, 37, 'Armor should be synced to 37');
 assert.strictEqual(projectiles.length, 0, 'Projectile is destroyed upon impacting hull');
 console.log('✓ Projectile partially blocked by shield (damage 5 -> 3), continues flying, and impacts hull for 3 damage');
 
@@ -464,6 +465,8 @@ console.log('12. Testing disabled ship at <= 10% armor and destruction at 0 heal
 // Get an NPC fleet ship from getTargetableShips
 const targetableList = global.window.getTargetableShips();
 const testNpc = targetableList.find(s => s !== target);
+testNpc.data.maxHullHealth = 10;
+testNpc.data.maxArmor = 10;
 testNpc.data.hullHealth = 10;
 testNpc.data.armor = 10;
 testNpc.data.shield = 0;

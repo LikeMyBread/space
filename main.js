@@ -252,6 +252,7 @@ const HULLS_DATA = [
   {
     name: 'Anvil',
     mass: 1416, // kg
+    armor: 10,
     pivot: {x: 15.5, y: 16.5},
     engine_mounts: [
       {x: 15, y: 24}
@@ -271,6 +272,7 @@ const HULLS_DATA = [
   {
     name: 'Avocado',
     mass: 3804, // kg
+    armor: 10,
     pivot: {x: 15.5, y: 20},
     engine_mounts: [
       {x: 15, y: 28}
@@ -290,6 +292,7 @@ const HULLS_DATA = [
   {
     name: 'Boat',
     mass: 8977, // kg
+    armor: 40,
     pivot: {x: 17.5, y: 17},
     engine_mounts: [
       {x: 10, y: 25},
@@ -315,6 +318,7 @@ const HULLS_DATA = [
   {
     name: 'Crab',
     mass: 2119, // kg
+    armor: 10,
     pivot: {x: 16.5, y: 18},
     engine_mounts: [
       {x: 15, y: 25}
@@ -339,6 +343,7 @@ const HULLS_DATA = [
   {
     name: 'Delta',
     mass: 906, // kg
+    armor: 10,
     pivot: {x: 15.5, y: 18},
     engine_mounts: [
       {x: 14, y: 25}
@@ -358,6 +363,7 @@ const HULLS_DATA = [
   {
     name: 'Hammer',
     mass: 1743, // kg
+    armor: 100,
     pivot: {x: 16.5, y: 15},
     engine_mounts: [
       {x: 15, y: 24}
@@ -392,6 +398,7 @@ const HULLS_DATA = [
   {
     name: 'Protogon',
     mass: 3643, // kg
+    armor: 10,
     pivot: {x: 11, y: 13},
     engine_mounts: [
       {x: 9, y: 20}
@@ -411,6 +418,7 @@ const HULLS_DATA = [
   {
     name: 'Shadow',
     mass: 2767, // kg
+    armor: 10,
     pivot: {x: 15.5, y: 17},
     engine_mounts: [
       {x: 13, y: 27},
@@ -436,6 +444,7 @@ const HULLS_DATA = [
   {
     name: 'Shuttle',
     mass: 2050, // kg
+    armor: 10,
     pivot: {x: 14.5, y: 16},
     engine_mounts: [
       {x: 14, y: 26}
@@ -455,6 +464,7 @@ const HULLS_DATA = [
   {
     name: 'Skate',
     mass: 1865, // kg
+    armor: 10,
     pivot: {x: 15.5, y: 14},
     engine_mounts: [
       {x: 15, y: 23}
@@ -863,6 +873,8 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
   const engineLit = createEngineLitProxy(shipObj, engineLitSprites);
   const engineReverse = engineReverseSprites.length > 0 ? createEngineReverseProxy(shipObj, engineReverseSprites) : null;
 
+  const baseArmor = (hull && hull.armor != null) ? hull.armor : 10;
+
   const newData = {
     id: nextShipId++,
     vx: 0,
@@ -875,10 +887,10 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     shield: 10,
     maxShield: 10,
     shieldRegenRate: DEFAULT_SHIELD_REGEN_RATE,
-    hullHealth: 10,
-    maxHullHealth: 10,
-    armor: 10,
-    maxArmor: 10,
+    hullHealth: baseArmor,
+    maxHullHealth: baseArmor,
+    armor: baseArmor,
+    maxArmor: baseArmor,
     shieldHitTimer: 0,
     shieldDownDelay: 0,
     isDisabled: false,
@@ -1409,7 +1421,7 @@ function setup() {
     const engineName = data.engine ? data.engine.name : '';
     const maxSpeed = Math.round(data.maxSpeed || 0);
 
-    const statusKey = `${Math.ceil(currentShield)}_${shieldPct.toFixed(1)}_${Math.ceil(currentArmor)}_${armorPct.toFixed(1)}_${Math.round(currentEnergy)}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}_${isGodMode}`;
+    const statusKey = `${Math.ceil(currentShield)}_${maxShield}_${shieldPct.toFixed(1)}_${Math.ceil(currentArmor)}_${maxArmor}_${armorPct.toFixed(1)}_${Math.round(currentEnergy)}_${currentFuel}_${maxFuel}_${hullName}_${engineName}_${maxSpeed}_${isGodMode}`;
     if (statusKey === prevStatusKey) return;
     prevStatusKey = statusKey;
 
@@ -1848,8 +1860,8 @@ function setup() {
         godModeBtn.textContent = 'God Mode: ON';
         godModeBtn.classList.add('active');
         playerShip.data.shield = playerShip.data.maxShield || 10;
-        playerShip.data.hullHealth = playerShip.data.maxHullHealth || 10;
-        playerShip.data.armor = playerShip.data.maxArmor || 10;
+        playerShip.data.hullHealth = playerShip.data.maxHullHealth || (playerShip.data.hull && playerShip.data.hull.armor) || 10;
+        playerShip.data.armor = playerShip.data.maxArmor || (playerShip.data.hull && playerShip.data.hull.armor) || 10;
         playerShip.data.isDisabled = false;
         playerShip.data.isDestroyed = false;
 
@@ -2616,6 +2628,19 @@ function setup() {
         hardpoint: hp,
         lastFired: -Infinity,
       }));
+      const newMaxArmor = hull.armor != null ? hull.armor : 10;
+      const prevMaxArmor = playerShip.data.maxHullHealth || playerShip.data.maxArmor || 10;
+      const prevHealth = playerShip.data.hullHealth != null ? playerShip.data.hullHealth : prevMaxArmor;
+      if (prevHealth >= prevMaxArmor) {
+        playerShip.data.hullHealth = newMaxArmor;
+        playerShip.data.armor = newMaxArmor;
+      } else {
+        const ratio = prevMaxArmor > 0 ? (prevHealth / prevMaxArmor) : 1;
+        playerShip.data.hullHealth = Math.min(newMaxArmor, Math.max(0, ratio * newMaxArmor));
+        playerShip.data.armor = playerShip.data.hullHealth;
+      }
+      playerShip.data.maxHullHealth = newMaxArmor;
+      playerShip.data.maxArmor = newMaxArmor;
     }
     if (engine) playerShip.data.engine = engine;
     if (paint) {
@@ -3629,8 +3654,8 @@ function setup() {
       playerShip.data.isDisabled = false;
       playerShip.data.isDestroyed = false;
       playerShip.data.shield = playerShip.data.maxShield || 10;
-      playerShip.data.hullHealth = playerShip.data.maxHullHealth || 10;
-      playerShip.data.armor = playerShip.data.maxArmor || 10;
+      playerShip.data.hullHealth = playerShip.data.maxHullHealth || (playerShip.data.hull && playerShip.data.hull.armor) || 10;
+      playerShip.data.armor = playerShip.data.maxArmor || (playerShip.data.hull && playerShip.data.hull.armor) || 10;
     } else {
       const playerMaxArmor = playerShip.data.maxHullHealth || playerShip.data.maxArmor || 10;
       if (playerShip.data.hullHealth <= playerMaxArmor * DISABLED_ARMOR_THRESHOLD && !playerShip.data.isDestroyed) {

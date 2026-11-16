@@ -244,7 +244,7 @@ projectiles.push(superProj);
 gameLoopFn(1);
 assert.strictEqual(projectiles.length, 0, 'Deadly projectile consumed');
 assert.strictEqual(playerShip.data.shield, 10, 'Player shield must remain 10 in God Mode');
-assert.strictEqual(playerShip.data.hullHealth, 10, 'Player hull health must remain 10 in God Mode');
+assert.strictEqual(playerShip.data.hullHealth, playerShip.data.maxHullHealth, 'Player hull health must remain at max in God Mode');
 assert.strictEqual(playerShip.data.isDisabled, false, 'Player must not be disabled in God Mode');
 assert.strictEqual(playerShip.data.isDestroyed, false, 'Player must not be destroyed in God Mode');
 assert(playerShip.data.shieldHitTimer > 0, 'Shield flare triggers on impact in God Mode');
