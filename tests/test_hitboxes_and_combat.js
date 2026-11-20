@@ -186,7 +186,7 @@ const exportsObj = runCode();
 const { setup, HULLS_DATA, WEAPONS_DATA, buildShip, checkSpeed, projectiles, spawnProjectile } = exportsObj;
 
 console.log('1. Testing HULLS_DATA hitbox definitions...');
-assert.strictEqual(HULLS_DATA.length, 11, 'Expected 11 hulls');
+assert.strictEqual(HULLS_DATA.length, 10, 'Expected 10 hulls');
 const expectedHullRadii = {
   Anvil: 7,
   Avocado: 7,
@@ -194,7 +194,6 @@ const expectedHullRadii = {
   Crab: 7,
   Delta: 6,
   Hammer: 8,
-  Moon: 6,
   Protogon: 7,
   Shadow: 10,
   Shuttle: 6,
@@ -204,7 +203,7 @@ for (const hull of HULLS_DATA) {
   assert.strictEqual(hull.hullRadius, expectedHullRadii[hull.name], `${hull.name} hullRadius must be ${expectedHullRadii[hull.name]}`);
   assert.strictEqual(hull.shieldRadius, 20, `${hull.name} shieldRadius must be 20`);
 }
-console.log('✓ All 11 hulls define their specific hullRadius and shieldRadius: 20');
+console.log('✓ All 10 hulls define their specific hullRadius and shieldRadius: 20');
 
 console.log('2. Testing WEAPONS_DATA damage...');
 assert.strictEqual(WEAPONS_DATA.light_blaster.damage, 1, 'light_blaster damage must be 1');

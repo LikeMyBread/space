@@ -396,31 +396,6 @@ const HULLS_DATA = [
     ],
   },
   {
-    name: 'Moon',
-    mass: 2601, // kg
-    armor: 10,
-    pivot: {x: 7, y: 7},
-    engine_mounts: [
-      {x: 7, y: 12, onTop: false, underneath: true}
-    ],
-    engine_mount: {x: 7, y: 12, onTop: false, underneath: true},
-    img: "img/ships/Moon.png",
-    hullRadius: 6,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 2, y: 5},
-      },
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 12, y: 5},
-      }
-    ],
-  },
-  {
     name: 'Protogon',
     mass: 3643, // kg
     armor: 10,
@@ -537,7 +512,6 @@ const ASSET_PATHS = [
   "img/ships/Crab.png",
   "img/ships/Delta.png",
   "img/ships/Hammer.png",
-  "img/ships/Moon.png",
   "img/ships/Protogon.png",
   "img/ships/Shadow.png",
   "img/ships/Shuttle.png",
@@ -643,15 +617,6 @@ function getBakedShipTexture(hull, engineData, paintColor, weapons = []) {
     }
   }
 
-  // Draw static engine(s) with onTop === false (underneath hull)
-  for (const mount of engineMounts) {
-    if (mount.onTop === false) {
-      const ex = mount.x - engineData.pivot.x;
-      const ey = mount.y - engineData.pivot.y;
-      ctx.drawImage(engineImg, ex + offsetX, ey + offsetY);
-    }
-  }
-
   // 2. Draw hull image at (offsetX, offsetY)
   ctx.drawImage(hullImg, offsetX, offsetY);
 
@@ -673,11 +638,9 @@ function getBakedShipTexture(hull, engineData, paintColor, weapons = []) {
 
   // 3. Draw static engine(s) on top at mount positions
   for (const mount of engineMounts) {
-    if (mount.onTop !== false) {
-      const ex = mount.x - engineData.pivot.x;
-      const ey = mount.y - engineData.pivot.y;
-      ctx.drawImage(engineImg, ex + offsetX, ey + offsetY);
-    }
+    const ex = mount.x - engineData.pivot.x;
+    const ey = mount.y - engineData.pivot.y;
+    ctx.drawImage(engineImg, ex + offsetX, ey + offsetY);
   }
 
   // 4. Draw weapons with onTop === true (on top of hull and engine)
@@ -883,11 +846,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     const sprite = new PIXI.Sprite(PIXI.Assets.get(engineData.imgLit));
     sprite.pivot.set(engineData.pivot.x, engineData.pivot.y);
     sprite.position.set(mount.x, mount.y);
-    if (mount.onTop === false && typeof newShip.addChildAt === 'function') {
-      newShip.addChildAt(sprite, 0);
-    } else {
-      newShip.addChild(sprite);
-    }
+    newShip.addChild(sprite);
     sprite.visible = false;
     return sprite;
   });
@@ -896,11 +855,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
     const sprite = new PIXI.Sprite(PIXI.Assets.get(engineData.imgReverse));
     sprite.pivot.set(engineData.pivot.x, engineData.pivot.y);
     sprite.position.set(mount.x, mount.y);
-    if (mount.onTop === false && typeof newShip.addChildAt === 'function') {
-      newShip.addChildAt(sprite, 0);
-    } else {
-      newShip.addChild(sprite);
-    }
+    newShip.addChild(sprite);
     sprite.visible = false;
     return sprite;
   }) : [];
@@ -2749,11 +2704,7 @@ function setup() {
       s.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
       s.position.set(mount.x, mount.y);
       s.visible = false;
-      if (mount.onTop === false && typeof playerShip.sprite.addChildAt === 'function') {
-        playerShip.sprite.addChildAt(s, 0);
-      } else {
-        playerShip.sprite.addChild(s);
-      }
+      playerShip.sprite.addChild(s);
       return s;
     });
     playerShip.data.engineLitSprites = newLitSprites;
@@ -2768,11 +2719,7 @@ function setup() {
         s.pivot.set(currentEngine.pivot.x, currentEngine.pivot.y);
         s.position.set(mount.x, mount.y);
         s.visible = false;
-        if (mount.onTop === false && typeof playerShip.sprite.addChildAt === 'function') {
-          playerShip.sprite.addChildAt(s, 0);
-        } else {
-          playerShip.sprite.addChild(s);
-        }
+        playerShip.sprite.addChild(s);
         return s;
       });
       playerShip.data.engineReverseSprite = createEngineReverseProxy(playerShip, newRevSprites);
@@ -3454,18 +3401,22 @@ function setup() {
       targetCtx.scale(zoom, zoom);
       targetCtx.rotate(targetShip.sprite.rotation);
 
-      const drawEngineFlames = (isUnderneath) => {
-        if (!engineData) return;
-        const litImg = rawImages[engineData.imgLit];
-        const revImg = engineData.reversible ? rawImages[engineData.imgReverse] : null;
-        const mounts = getEngineMounts(hull);
+      // Draw baked static ship
+      targetCtx.drawImage(
+        bakedCanvas,
+        -(hull.pivot.x + bakedOffsetX),
+        -(hull.pivot.y + bakedOffsetY)
+      );
 
+      // Draw lit thruster flame if active
+      if (engineData) {
+        const litImg = rawImages[engineData.imgLit];
         if (litImg) {
+          const mounts = getEngineMounts(hull);
           if (targetShip.data.engineLitSprites && targetShip.data.engineLitSprites.length) {
             targetShip.data.engineLitSprites.forEach((sprite, idx) => {
-              const m = mounts[idx] || hull.engine_mount;
-              const under = m && m.onTop === false;
-              if (under === isUnderneath && sprite.visible) {
+              if (sprite.visible) {
+                const m = mounts[idx] || hull.engine_mount;
                 targetCtx.drawImage(
                   litImg,
                   m.x - hull.pivot.x - engineData.pivot.x,
@@ -3474,23 +3425,24 @@ function setup() {
               }
             });
           } else if (targetShip.data.engineLitSprite && targetShip.data.engineLitSprite.visible) {
-            const under = hull.engine_mount && hull.engine_mount.onTop === false;
-            if (under === isUnderneath) {
-              targetCtx.drawImage(
-                litImg,
-                hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
-                hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
-              );
-            }
+            targetCtx.drawImage(
+              litImg,
+              hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
+              hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
+            );
           }
         }
+      }
 
+      // Draw reverse thruster flame if active
+      if (engineData && engineData.reversible) {
+        const revImg = rawImages[engineData.imgReverse];
         if (revImg) {
+          const mounts = getEngineMounts(hull);
           if (targetShip.data.engineReverseSprites && targetShip.data.engineReverseSprites.length) {
             targetShip.data.engineReverseSprites.forEach((sprite, idx) => {
-              const m = mounts[idx] || hull.engine_mount;
-              const under = m && m.onTop === false;
-              if (under === isUnderneath && sprite.visible) {
+              if (sprite.visible) {
+                const m = mounts[idx] || hull.engine_mount;
                 targetCtx.drawImage(
                   revImg,
                   m.x - hull.pivot.x - engineData.pivot.x,
@@ -3499,30 +3451,14 @@ function setup() {
               }
             });
           } else if (targetShip.data.engineReverseSprite && targetShip.data.engineReverseSprite.visible) {
-            const under = hull.engine_mount && hull.engine_mount.onTop === false;
-            if (under === isUnderneath) {
-              targetCtx.drawImage(
-                revImg,
-                hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
-                hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
-              );
-            }
+            targetCtx.drawImage(
+              revImg,
+              hull.engine_mount.x - hull.pivot.x - engineData.pivot.x,
+              hull.engine_mount.y - hull.pivot.y - engineData.pivot.y
+            );
           }
         }
-      };
-
-      // Draw underneath thruster flames (if any)
-      drawEngineFlames(true);
-
-      // Draw baked static ship
-      targetCtx.drawImage(
-        bakedCanvas,
-        -(hull.pivot.x + bakedOffsetX),
-        -(hull.pivot.y + bakedOffsetY)
-      );
-
-      // Draw on-top thruster flames (default)
-      drawEngineFlames(false);
+      }
 
       // Draw shield impact circle on target monitor if active
       if (targetShip.data.shieldHitTimer > 0) {
