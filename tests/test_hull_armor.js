@@ -193,6 +193,7 @@ console.log('--- 1. Testing HULLS_DATA Armor Values ---');
 const expectedArmor = {
   Hammer: 100,
   Boat: 40,
+  Moon: 10,
   Anvil: 10,
   Avocado: 10,
   Crab: 10,
@@ -203,7 +204,7 @@ const expectedArmor = {
   Skate: 10,
 };
 
-assert.strictEqual(HULLS_DATA.length, 10, 'Expected 10 hulls in HULLS_DATA');
+assert.strictEqual(HULLS_DATA.length, 11, 'Expected 11 hulls in HULLS_DATA');
 
 for (const [name, armorVal] of Object.entries(expectedArmor)) {
   const hull = HULLS_DATA.find((h) => h.name === name);

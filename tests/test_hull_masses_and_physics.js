@@ -183,13 +183,14 @@ const expectedMasses = {
   'Crab': 2119,
   'Delta': 906,
   'Hammer': 1743,
+  'Moon': 2601,
   'Protogon': 3643,
   'Shadow': 2767,
   'Shuttle': 2050,
   'Skate': 1865,
 };
 
-assert.strictEqual(HULLS_DATA.length, 10, 'Expected 10 ship hulls in HULLS_DATA');
+assert.strictEqual(HULLS_DATA.length, 11, 'Expected 11 ship hulls in HULLS_DATA');
 
 for (const [name, expectedMass] of Object.entries(expectedMasses)) {
   const hull = HULLS_DATA.find((h) => h.name === name);

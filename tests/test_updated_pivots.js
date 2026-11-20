@@ -268,13 +268,14 @@ function runTests() {
     Crab: { x: 16.5, y: 18, hullRadius: 7 },
     Delta: { x: 15.5, y: 18, hullRadius: 6 },
     Hammer: { x: 16.5, y: 15, hullRadius: 8 },
+    Moon: { x: 7, y: 7, hullRadius: 6 },
     Protogon: { x: 11, y: 13, hullRadius: 7 },
     Shadow: { x: 15.5, y: 17, hullRadius: 10 },
     Shuttle: { x: 14.5, y: 16, hullRadius: 6 },
     Skate: { x: 15.5, y: 14, hullRadius: 7 },
   };
 
-  // 1. Verify all 10 hulls in HULLS_DATA have exact expected coordinates and hitbox radii
+  // 1. Verify all 11 hulls in HULLS_DATA have exact expected coordinates and hitbox radii
   console.log("--- 1. Testing HULLS_DATA Pivot Coordinates & Hitbox Radii ---");
   for (const [name, expected] of Object.entries(expectedPivots)) {
     const hull = HULLS_DATA.find(h => h.name === name);
@@ -293,7 +294,7 @@ function runTests() {
     assert.strictEqual(ship.sprite.pivot.x, expected.x, `${name} container pivot.x must match hull.pivot.x`);
     assert.strictEqual(ship.sprite.pivot.y, expected.y, `${name} container pivot.y must match hull.pivot.y`);
   }
-  console.log("✓ All 10 ship containers correctly set fractional/integer pivots on instantiation");
+  console.log("✓ All 11 ship containers correctly set fractional/integer pivots on instantiation");
 
   // 3. Test player loadout change to Anvil (fractional 15.5, 16.5)
   console.log("\n--- 3. Testing Player Ship Switch to Fractional Pivot Hull ---");
