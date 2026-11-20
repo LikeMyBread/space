@@ -505,6 +505,30 @@ const ENGINES_DATA = [
   },
 ];
 
+const PLANETS_DATA = [
+  {
+    name: "Sugar",
+    img: "img/planets/Sugar.png",
+    x: GAME_WIDTH / 2 - 600,
+    y: GAME_HEIGHT / 2 - 600,
+    radius: 100,
+  },
+  {
+    name: "Pepper",
+    img: "img/planets/Pepper.png",
+    x: GAME_WIDTH / 2 + 1300,
+    y: GAME_HEIGHT / 2 + 1100,
+    radius: 100,
+  },
+  {
+    name: "Pepper II",
+    img: "img/planets/Pepper2.png",
+    x: GAME_WIDTH / 2 - 2000,
+    y: GAME_HEIGHT / 2 + 1800,
+    radius: 100,
+  },
+];
+
 const ASSET_PATHS = [
   "img/ships/Anvil.png",
   "img/ships/Avocado.png",
@@ -523,7 +547,10 @@ const ASSET_PATHS = [
   "img/engines/TurboThruster_lit.png",
   "img/weapons/Blaster.png",
   "img/weapons/Blaster Bolt.png",
-  "img/stars/Star.png"
+  "img/stars/Star.png",
+  "img/planets/Sugar.png",
+  "img/planets/Pepper.png",
+  "img/planets/Pepper2.png"
 ];
 
 // Preloaded HTMLImageElements for direct pixel manipulation in memory
@@ -1387,6 +1414,77 @@ function setup() {
         app.stage.addChild(star);
       }
     }
+  }
+
+  // Planet container underneath ships and projectiles
+  const planetContainer = (typeof PIXI !== 'undefined' && typeof PIXI.Container === 'function') ? new PIXI.Container() : null;
+  if (planetContainer && app && app.stage && typeof app.stage.addChild === 'function') {
+    app.stage.addChild(planetContainer);
+  }
+
+  const planets = [];
+  for (const def of PLANETS_DATA) {
+    let texture = null;
+    if (typeof PIXI !== 'undefined') {
+      if (PIXI.Assets && typeof PIXI.Assets.get === 'function') {
+        texture = PIXI.Assets.get(def.img);
+      }
+      if (!texture && PIXI.Texture && typeof PIXI.Texture.from === 'function') {
+        texture = PIXI.Texture.from(def.img);
+      }
+    }
+
+    let sprite;
+    if (typeof PIXI !== 'undefined' && typeof PIXI.Sprite === 'function') {
+      sprite = new PIXI.Sprite(texture);
+      if (sprite.pivot && typeof sprite.pivot.set === 'function') {
+        sprite.pivot.set(def.radius, def.radius);
+      }
+      if (sprite.position && typeof sprite.position.set === 'function') {
+        sprite.position.set(def.x, def.y);
+      } else {
+        sprite.x = def.x;
+        sprite.y = def.y;
+      }
+      if (planetContainer) {
+        planetContainer.addChild(sprite);
+      } else if (app && app.stage && typeof app.stage.addChild === 'function') {
+        app.stage.addChild(sprite);
+      }
+    } else {
+      sprite = {
+        x: def.x,
+        y: def.y,
+        pivot: { x: def.radius, y: def.radius, set: (px, py) => { sprite.pivot.x = px; sprite.pivot.y = py; } },
+        position: {
+          get x() { return sprite.x; },
+          set x(v) { sprite.x = v; },
+          get y() { return sprite.y; },
+          set y(v) { sprite.y = v; },
+          set: (x, y) => { sprite.x = x; sprite.y = y; }
+        },
+        visible: true,
+      };
+    }
+
+    const planetObj = {
+      sprite,
+      data: {
+        id: nextShipId++,
+        name: def.name,
+        isPlanet: true,
+        isDestroyed: false,
+        radius: def.radius,
+        img: def.img,
+        vx: 0,
+        vy: 0,
+        shield: 0,
+        maxShield: 0,
+        hullHealth: 0,
+        maxHullHealth: 0,
+      }
+    };
+    planets.push(planetObj);
   }
 
   // Player ship starts with the default Crimson Vanguard paint and default blaster
@@ -2795,19 +2893,36 @@ function setup() {
     return list;
   }
 
+  function getAllTargets() {
+    const list = getTargetableShips();
+    if (typeof planets !== 'undefined' && planets) {
+      for (let i = 0; i < planets.length; i++) {
+        if (planets[i] && !planets[i].data.isDestroyed) {
+          list.push(planets[i]);
+        }
+      }
+    }
+    return list;
+  }
+
   let currentTargetId = derelictShip ? derelictShip.data.id : null;
 
   function getCurrentTarget() {
-    const list = getTargetableShips();
-    if (list.length === 0) return null;
-    const found = list.find((s) => s.data.id === currentTargetId);
+    const all = getAllTargets();
+    if (all.length === 0) return null;
+    const found = all.find((s) => s.data.id === currentTargetId);
     if (found) return found;
-    currentTargetId = list[0].data.id;
-    return list[0];
+    const shipList = getTargetableShips();
+    if (shipList.length > 0) {
+      currentTargetId = shipList[0].data.id;
+      return shipList[0];
+    }
+    currentTargetId = all[0].data.id;
+    return all[0];
   }
 
   function cycleTarget(reverse = false) {
-    const list = getTargetableShips();
+    const list = getAllTargets();
     if (list.length === 0) return;
     const currentIndex = list.findIndex((s) => s.data.id === currentTargetId);
     let nextIndex;
@@ -2890,16 +3005,16 @@ function setup() {
     }
   }
 
-  // Main screen click targeting: selects closest targetable ship to clicked stage coordinates
+  // Main screen click targeting: selects closest targetable ship or destination to clicked stage coordinates
   function selectClosestShipToStagePoint(clickX, clickY) {
-    const candidateShips = getTargetableShips();
-    if (candidateShips.length === 0) return null;
+    const candidateTargets = getAllTargets();
+    if (candidateTargets.length === 0) return null;
 
     let closestShip = null;
     let closestDistSq = Infinity;
 
-    for (let i = 0; i < candidateShips.length; i++) {
-      const s = candidateShips[i];
+    for (let i = 0; i < candidateTargets.length; i++) {
+      const s = candidateTargets[i];
       if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
       const dx = s.sprite.x - clickX;
       const dy = s.sprite.y - clickY;
@@ -2944,16 +3059,16 @@ function setup() {
     return selectClosestShipToStagePoint(clickX, clickY);
   }
 
-  // Radar screen click targeting: selects ship whose dot is closest to clicked radar coordinates
+  // Radar screen click targeting: selects ship or destination whose dot is closest to clicked radar coordinates
   function selectClosestShipToRadarPoint(clickX, clickY) {
-    const candidateShips = getTargetableShips();
-    if (candidateShips.length === 0 || !playerShip) return null;
+    const candidateTargets = getAllTargets();
+    if (candidateTargets.length === 0 || !playerShip) return null;
 
     let closestShip = null;
     let closestDistSq = Infinity;
 
-    for (let i = 0; i < candidateShips.length; i++) {
-      const s = candidateShips[i];
+    for (let i = 0; i < candidateTargets.length; i++) {
+      const s = candidateTargets[i];
       if (!s || !s.sprite || !s.data || s.data.isDestroyed) continue;
       const pos = getRadarDotPosition(s, playerShip);
       if (!pos) continue;
@@ -3098,6 +3213,9 @@ function setup() {
     window.clonePlayerShip = clonePlayerShip;
     window.ships = ships;
     window.derelictShip = derelictShip;
+    window.planets = planets;
+    window.PLANETS_DATA = PLANETS_DATA;
+    window.getAllTargets = getAllTargets;
     window.buildShip = buildShip;
     window.organizeFleets = organizeFleets;
     window.getFleetLeader = getFleetLeader;
@@ -3259,6 +3377,56 @@ function setup() {
       }
     }
 
+    // Helper to plot a planet on radar (hollow yellow circle, bigger than ship dots)
+    function plotPlanetDot(planet) {
+      if (!planet || !planet.sprite || !planet.data) return;
+      const dotPos = getRadarDotPosition(planet, playerShip);
+      if (!dotPos) return;
+
+      const rx = dotPos.rx;
+      const ry = dotPos.ry;
+      const radius = 7.5;
+
+      radarCtx.strokeStyle = '#facc15';
+      radarCtx.lineWidth = 1.5;
+      radarCtx.beginPath();
+      radarCtx.arc(rx, ry, radius, 0, Math.PI * 2);
+      radarCtx.stroke();
+
+      // Draw tactical targeting bracket if this planet is the current target
+      if (currentTarget && currentTarget.data && planet.data.id === currentTarget.data.id) {
+        radarCtx.strokeStyle = '#38bdf8';
+        radarCtx.lineWidth = 2;
+        const b = 11;
+        radarCtx.beginPath();
+        // Top-left
+        radarCtx.moveTo(rx - b, ry - b + 4);
+        radarCtx.lineTo(rx - b, ry - b);
+        radarCtx.lineTo(rx - b + 4, ry - b);
+        // Top-right
+        radarCtx.moveTo(rx + b - 4, ry - b);
+        radarCtx.lineTo(rx + b, ry - b);
+        radarCtx.lineTo(rx + b, ry - b + 4);
+        // Bottom-right
+        radarCtx.moveTo(rx + b, ry + b - 4);
+        radarCtx.lineTo(rx + b, ry + b);
+        radarCtx.lineTo(rx + b - 4, ry + b);
+        // Bottom-left
+        radarCtx.moveTo(rx - b + 4, ry + b);
+        radarCtx.lineTo(rx - b, ry + b);
+        radarCtx.lineTo(rx - b, ry + b - 4);
+        radarCtx.stroke();
+        radarCtx.lineWidth = 1;
+      }
+    }
+
+    // Draw planets
+    if (typeof planets !== 'undefined' && planets) {
+      for (let i = 0; i < planets.length; i++) {
+        plotPlanetDot(planets[i]);
+      }
+    }
+
     // Draw derelict ship
     if (derelictShip) {
       plotShipDot(derelictShip, false, true);
@@ -3383,6 +3551,82 @@ function setup() {
       targetShip.sprite.y < 0 ||
       targetShip.sprite.y > GAME_HEIGHT
     );
+
+    if (targetShip.data.isPlanet) {
+      const planetImg = rawImages[targetShip.data.img];
+      if (planetImg) {
+        targetCtx.save();
+        targetCtx.imageSmoothingEnabled = true;
+        const pSize = 100;
+        targetCtx.drawImage(
+          planetImg,
+          cx - pSize / 2,
+          cy - pSize / 2,
+          pSize,
+          pSize
+        );
+        targetCtx.restore();
+      }
+
+      // Tactical OSD overlay
+      targetCtx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
+
+      // Sensor feed status
+      if (isOffscreen) {
+        targetCtx.fillStyle = '#f59e0b';
+        targetCtx.fillText('FEED: REMOTE [OFFSCREEN]', 12, 17);
+      } else {
+        targetCtx.fillStyle = '#4ade80';
+        targetCtx.fillText('FEED: DIRECT [OPTICAL]', 12, 17);
+      }
+
+      // Lock status & Destination tag
+      targetCtx.textAlign = 'right';
+      targetCtx.fillStyle = '#facc15';
+      targetCtx.fillText('TRK: DESTINATION', width - 12, 17);
+      targetCtx.fillStyle = '#94a3b8';
+      targetCtx.fillText('CLASS: PLANET', width - 12, 29);
+      targetCtx.textAlign = 'start';
+
+      // Range & Bearing
+      targetCtx.fillStyle = '#94a3b8';
+      targetCtx.fillText(`RNG: ${Math.round(dist)}m`, 12, height - 9);
+      targetCtx.textAlign = 'right';
+      targetCtx.fillText(`BRG: ${bearingDeg.toString().padStart(3, '0')}°`, width - 12, height - 9);
+      targetCtx.textAlign = 'start';
+
+      // HTML target panel readouts
+      if (targetIdBadge) {
+        targetIdBadge.textContent = `ID #${targetShip.data.id}`;
+      }
+      if (targetHullVal) {
+        targetHullVal.textContent = targetShip.data.name;
+      }
+      if (targetFactionVal) {
+        targetFactionVal.textContent = 'Celestial Body';
+        targetFactionVal.style.color = '#facc15';
+      }
+      if (targetDistVal) {
+        targetDistVal.textContent = `${Math.round(dist).toLocaleString()}m`;
+      }
+      if (targetStateVal) {
+        targetStateVal.textContent = 'DESTINATION';
+        targetStateVal.style.color = '#facc15';
+      }
+      if (targetShieldVal) {
+        targetShieldVal.textContent = '--';
+      }
+      if (targetShieldBar) {
+        targetShieldBar.style.width = '0%';
+      }
+      if (targetArmorVal) {
+        targetArmorVal.textContent = '--';
+      }
+      if (targetArmorBar) {
+        targetArmorBar.style.width = '0%';
+      }
+      return;
+    }
 
     // 1. Draw live target ship (with rotation, weapons, trim color, and thrusters)
     const hull = targetShip.data.hull;
@@ -3597,9 +3841,37 @@ function setup() {
     const tx = Math.round(target.sprite.x);
     const ty = Math.round(target.sprite.y);
 
-    // Do not render brackets if the target ship is completely off-screen
-    const margin = 50;
+    // Do not render brackets if the target ship or destination is completely off-screen
+    const margin = target.data.isPlanet ? 150 : 50;
     if (tx < -margin || tx > GAME_WIDTH + margin || ty < -margin || ty > GAME_HEIGHT + margin) {
+      return;
+    }
+
+    if (target.data.isPlanet) {
+      const b = 110;
+      const arm = 24;
+
+      // Top-left
+      targetBracketGraphics.moveTo(tx - b, ty - b + arm);
+      targetBracketGraphics.lineTo(tx - b, ty - b);
+      targetBracketGraphics.lineTo(tx - b + arm, ty - b);
+
+      // Top-right
+      targetBracketGraphics.moveTo(tx + b - arm, ty - b);
+      targetBracketGraphics.lineTo(tx + b, ty - b);
+      targetBracketGraphics.lineTo(tx + b, ty - b + arm);
+
+      // Bottom-right
+      targetBracketGraphics.moveTo(tx + b, ty + b - arm);
+      targetBracketGraphics.lineTo(tx + b, ty + b);
+      targetBracketGraphics.lineTo(tx + b - arm, ty + b);
+
+      // Bottom-left
+      targetBracketGraphics.moveTo(tx - b + arm, ty + b);
+      targetBracketGraphics.lineTo(tx - b, ty + b);
+      targetBracketGraphics.lineTo(tx - b, ty + b - arm);
+
+      targetBracketGraphics.stroke({ width: 2, color: '#facc15' });
       return;
     }
 
@@ -4142,6 +4414,26 @@ function setup() {
         dy >= -CULL_MARGIN &&
         dy <= GAME_HEIGHT + CULL_MARGIN
       );
+    }
+
+    // Planet movement relative to player ship & viewport culling
+    const PLANET_CULL_MARGIN = 150;
+    if (typeof planets !== 'undefined' && planets) {
+      for (let i = 0; i < planets.length; i++) {
+        const p = planets[i];
+        if (!p || !p.sprite) continue;
+        p.sprite.x -= playerShip.data.vx * delta * (60 / 1000) || 0;
+        p.sprite.y -= playerShip.data.vy * delta * (60 / 1000) || 0;
+
+        const px = p.sprite.x;
+        const py = p.sprite.y;
+        p.sprite.visible = (
+          px >= -PLANET_CULL_MARGIN &&
+          px <= GAME_WIDTH + PLANET_CULL_MARGIN &&
+          py >= -PLANET_CULL_MARGIN &&
+          py <= GAME_HEIGHT + PLANET_CULL_MARGIN
+        );
+      }
     }
 
     for (var i = 0; i < stars.length; i++) {
