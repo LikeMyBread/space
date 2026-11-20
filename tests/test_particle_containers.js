@@ -339,6 +339,20 @@ for (const p of planets) {
   assert.strictEqual(p.container.particleChildren.length, 1, 'Each planet texture container must hold its particle');
 }
 
+// Verify layer ordering: planets must be rendered underneath all projectiles (above stars, beneath projectileContainerUnder)
+const planetContainerIdx = sandbox.app.stage.children.indexOf(sandbox.window.planetContainer);
+const projUnderIdx = sandbox.app.stage.children.indexOf(projContainerUnder);
+const projOverIdx = sandbox.app.stage.children.indexOf(projContainerOver);
+const starContainerIdx = sandbox.app.stage.children.indexOf(starContainer);
+
+assert(starContainerIdx !== -1, 'starContainer must be in stage');
+assert(planetContainerIdx !== -1, 'planetContainer must be in stage');
+assert(projUnderIdx !== -1, 'projContainerUnder must be in stage');
+assert(planetContainerIdx > starContainerIdx, 'planetContainer must be above starContainer');
+assert(projUnderIdx > planetContainerIdx, 'projectileContainerUnder must be above planetContainer so projectiles render on top of planets');
+assert(projOverIdx > planetContainerIdx, 'projectileContainerOver must be above planetContainer');
+console.log('✓ Stage layering verified: planets render above stars, beneath projectiles');
+
 // Test culling
 const testPlanet = planets[0];
 testPlanet.sprite.x = 500;

@@ -1387,18 +1387,6 @@ function setup() {
       stars.push(star);
       starContainer.addParticle(star);
     }
-
-    // Projectile container underneath ships (for hardpoints with onTop = false)
-    projectileContainerUnder = new PIXI.ParticleContainer({
-      dynamicProperties: {
-        position: true,
-        rotation: true,
-        vertex: false,
-        uvs: false,
-        color: false,
-      }
-    });
-    app.stage.addChild(projectileContainerUnder);
   } else {
     for (let i = 0; i < numberOfStars; i++) {
       let star = (typeof PIXI !== 'undefined' && typeof PIXI.Sprite === 'function') ? new PIXI.Sprite(starTexture) : { x: 0, y: 0 };
@@ -1416,7 +1404,7 @@ function setup() {
     }
   }
 
-  // Planet container underneath ships and projectiles
+  // Planet container underneath ships and projectiles (rendered above stars, beneath projectiles)
   const planetContainer = (typeof PIXI !== 'undefined' && typeof PIXI.Container === 'function') ? new PIXI.Container() : null;
   if (planetContainer && app && app.stage && typeof app.stage.addChild === 'function') {
     app.stage.addChild(planetContainer);
@@ -1537,6 +1525,20 @@ function setup() {
       }
     };
     planets.push(planetObj);
+  }
+
+  if (hasParticleSupport) {
+    // Projectile container underneath ships (for hardpoints with onTop = false), positioned above planets
+    projectileContainerUnder = new PIXI.ParticleContainer({
+      dynamicProperties: {
+        position: true,
+        rotation: true,
+        vertex: false,
+        uvs: false,
+        color: false,
+      }
+    });
+    app.stage.addChild(projectileContainerUnder);
   }
 
   // Player ship starts with the default Crimson Vanguard paint and default blaster

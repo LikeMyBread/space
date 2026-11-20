@@ -342,7 +342,9 @@ shipA.sprite.position.set(500, 500);
 shipA.data.vx = 0;
 shipA.data.vy = 0;
 shipA.data.shield = 10;
-shipA.data.hullHealth = 10;
+shipA.data.hullHealth = shipA.data.maxHullHealth || 10;
+shipA.data.armor = shipA.data.hullHealth;
+shipA.data.isDisabled = false;
 shipA.data.isDestroyed = false;
 shipA.data.combatTarget = shipB;
 
