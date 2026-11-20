@@ -1422,6 +1422,7 @@ function setup() {
     app.stage.addChild(planetContainer);
   }
 
+  const planetTextureContainers = new Map();
   const planets = [];
   for (const def of PLANETS_DATA) {
     let texture = null;
@@ -1434,9 +1435,57 @@ function setup() {
       }
     }
 
-    let sprite;
-    if (typeof PIXI !== 'undefined' && typeof PIXI.Sprite === 'function') {
-      sprite = new PIXI.Sprite(texture);
+    let particleOrSprite;
+    let pContainer = null;
+
+    if (hasParticleSupport) {
+      if (!planetTextureContainers.has(def.img)) {
+        const pc = new PIXI.ParticleContainer({
+          texture: texture,
+          dynamicProperties: {
+            position: true,
+            rotation: false,
+            vertex: false,
+            uvs: false,
+            color: false,
+          }
+        });
+        if (planetContainer) {
+          planetContainer.addChild(pc);
+        } else if (app && app.stage && typeof app.stage.addChild === 'function') {
+          app.stage.addChild(pc);
+        }
+        planetTextureContainers.set(def.img, pc);
+      }
+      pContainer = planetTextureContainers.get(def.img);
+
+      const particle = new PIXI.Particle({
+        texture: texture,
+        x: def.x,
+        y: def.y,
+        anchorX: 0.5,
+        anchorY: 0.5,
+      });
+
+      // Provide compatibility properties for radar, targeting, and inspection
+      particle.pivot = {
+        x: def.radius,
+        y: def.radius,
+        set: (px, py) => { particle.pivot.x = px; particle.pivot.y = py; }
+      };
+      particle.position = {
+        get x() { return particle.x; },
+        set x(v) { particle.x = v; },
+        get y() { return particle.y; },
+        set y(v) { particle.y = v; },
+        set: (x, y) => { particle.x = x; particle.y = y; }
+      };
+      particle.visible = true;
+
+      pContainer.addParticle(particle);
+      particleOrSprite = particle;
+    } else if (typeof PIXI !== 'undefined' && typeof PIXI.Sprite === 'function') {
+      const sprite = new PIXI.Sprite(texture);
       if (sprite.pivot && typeof sprite.pivot.set === 'function') {
         sprite.pivot.set(def.radius, def.radius);
       }
@@ -1451,24 +1500,27 @@ function setup() {
       } else if (app && app.stage && typeof app.stage.addChild === 'function') {
         app.stage.addChild(sprite);
       }
+      particleOrSprite = sprite;
     } else {
-      sprite = {
+      particleOrSprite = {
         x: def.x,
         y: def.y,
-        pivot: { x: def.radius, y: def.radius, set: (px, py) => { sprite.pivot.x = px; sprite.pivot.y = py; } },
+        pivot: { x: def.radius, y: def.radius, set: (px, py) => { particleOrSprite.pivot.x = px; particleOrSprite.pivot.y = py; } },
         position: {
-          get x() { return sprite.x; },
-          set x(v) { sprite.x = v; },
-          get y() { return sprite.y; },
-          set y(v) { sprite.y = v; },
-          set: (x, y) => { sprite.x = x; sprite.y = y; }
+          get x() { return particleOrSprite.x; },
+          set x(v) { particleOrSprite.x = v; },
+          get y() { return particleOrSprite.y; },
+          set y(v) { particleOrSprite.y = v; },
+          set: (x, y) => { particleOrSprite.x = x; particleOrSprite.y = y; }
         },
         visible: true,
       };
     }
 
     const planetObj = {
-      sprite,
+      sprite: particleOrSprite,
+      particle: particleOrSprite,
+      container: pContainer,
       data: {
         id: nextShipId++,
         name: def.name,
@@ -3216,6 +3268,8 @@ function setup() {
     window.planets = planets;
     window.PLANETS_DATA = PLANETS_DATA;
     window.getAllTargets = getAllTargets;
+    window.planetContainer = planetContainer;
+    window.planetTextureContainers = planetTextureContainers;
     window.buildShip = buildShip;
     window.organizeFleets = organizeFleets;
     window.getFleetLeader = getFleetLeader;
@@ -4427,12 +4481,16 @@ function setup() {
 
         const px = p.sprite.x;
         const py = p.sprite.y;
-        p.sprite.visible = (
+        const isVisible = (
           px >= -PLANET_CULL_MARGIN &&
           px <= GAME_WIDTH + PLANET_CULL_MARGIN &&
           py >= -PLANET_CULL_MARGIN &&
           py <= GAME_HEIGHT + PLANET_CULL_MARGIN
         );
+        p.sprite.visible = isVisible;
+        if (p.container) {
+          p.container.visible = isVisible;
+        }
       }
     }
 

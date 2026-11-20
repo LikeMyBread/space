@@ -330,4 +330,26 @@ if (derelict && derelict.sprite) {
 
 console.log('✓ Offscreen ships and derelict correctly toggled visible = false/true for render culling');
 
+console.log('8. Testing Planet ParticleContainer creation and performance culling...');
+const planets = sandbox.window.planets;
+assert(Array.isArray(planets) && planets.length === 3, 'planets array must track 3 planets');
+for (const p of planets) {
+  assert(p.particle instanceof sandbox.PIXI.Particle, 'Planet must use PIXI.Particle for high performance rendering');
+  assert(p.container instanceof sandbox.PIXI.ParticleContainer, 'Planet must be contained in a PIXI.ParticleContainer');
+  assert.strictEqual(p.container.particleChildren.length, 1, 'Each planet texture container must hold its particle');
+}
+
+// Test culling
+const testPlanet = planets[0];
+testPlanet.sprite.x = 500;
+testPlanet.sprite.y = 300;
+gameLoop(1);
+assert.strictEqual(testPlanet.container.visible, true, 'Planet in viewport must have container.visible = true');
+
+testPlanet.sprite.x = 5000;
+testPlanet.sprite.y = 5000;
+gameLoop(1);
+assert.strictEqual(testPlanet.container.visible, false, 'Planet far outside viewport must have container.visible = false');
+console.log('✓ Planets successfully rendered via ParticleContainers with hardware-level viewport culling');
+
 console.log('\nALL PIXIJS V8 PARTICLECONTAINER & CULLING TESTS PASSED! 🌟🔫');
