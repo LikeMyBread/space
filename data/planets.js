@@ -39,7 +39,7 @@
     {
       name: 'Pepper II',
       img: 'img/planets/Pepper2.png',
-      description: 'Mining is officially banned on Pepper II due to the extreme danger of its constant volcanic activity, but that doesn\'t stop wildcatters from trying. The precious ores make the survivors rich.',
+      description: "Mining is officially banned on Pepper II due to the extreme danger of its constant volcanic activity, but that doesn't stop wildcatters from trying. The precious ores make the survivors rich.",
       x: gw / 2 - 2000,
       y: gh / 2 + 1800,
       radius: 100,
