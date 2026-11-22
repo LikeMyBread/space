@@ -588,24 +588,23 @@
       color: #94a3b8;
     }
 
-    /* In-game notification display in bottom-left */
+    /* In-game notification display in bottom-left (floating text) */
     #game-notification {
       position: absolute;
       bottom: 20px;
       left: 20px;
       z-index: 50;
       pointer-events: none;
-      max-width: 480px;
-      padding: 10px 16px;
-      background: rgba(9, 18, 32, 0.9);
-      border: 1px solid #1a2942;
-      border-left: 3px solid #38bdf8;
-      border-radius: 6px;
+      max-width: 500px;
+      padding: 0;
+      background: none;
+      border: none;
       color: #e0e6ed;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 13px;
+      font-size: 14px;
+      font-weight: 500;
       line-height: 1.4;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.8);
       opacity: 0;
       transition: opacity 0.8s ease-out;
     }
