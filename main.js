@@ -1,5 +1,50 @@
 'use strict';
 
+// Load external data modules if running in Node.js (e.g. test runner)
+const _proc = typeof process !== 'undefined'
+  ? process
+  : (typeof Function === 'function' ? Function('return typeof process !== "undefined" ? process : null')() : null);
+
+const _req = typeof require !== 'undefined'
+  ? require
+  : (_proc && _proc.mainModule && typeof _proc.mainModule.require === 'function')
+    ? _proc.mainModule.require
+    : (_proc && typeof _proc.getBuiltinModule === 'function')
+      ? _proc.getBuiltinModule('module').createRequire(_proc.cwd() + '/')
+      : null;
+
+if (_req && _proc) {
+  try {
+    const _path = _req('path');
+    const _fs = _req('fs');
+    let _baseDir = _path.resolve('data');
+    if (!_fs.existsSync(_baseDir)) {
+      if (typeof __dirname !== 'undefined') {
+        if (_fs.existsSync(_path.resolve(__dirname, 'data'))) {
+          _baseDir = _path.resolve(__dirname, 'data');
+        } else if (_fs.existsSync(_path.resolve(__dirname, '../data'))) {
+          _baseDir = _path.resolve(__dirname, '../data');
+        }
+      }
+    }
+    const _loadData = (file) => {
+      const mod = _req(_path.resolve(_baseDir, file));
+      if (mod && typeof globalThis !== 'undefined') {
+        Object.assign(globalThis, mod);
+      }
+      return mod;
+    };
+    _loadData('constants.js');
+    _loadData('keybindings.js');
+    _loadData('weapons.js');
+    _loadData('hulls.js');
+    _loadData('engines.js');
+    _loadData('planets.js');
+    _loadData('paints.js');
+    _loadData('assets.js');
+  } catch (_e) {}
+}
+
 const DEBUG = document.getElementById("debug");
 const fpsDisplay = document.getElementById("fps-counter");
 const shipCountDisplay = document.getElementById("ship-count");
@@ -96,17 +141,18 @@ if (typeof window !== 'undefined') {
   window.showGameNotification = showGameNotification;
 }
 
-const GAME_WIDTH = 1000;
-const GAME_HEIGHT = 600;
-const OFFSCREEN = 100;
-const PIXELS_PER_METER = 1;
-const TURN_RATE = 0.04; // rad/frame
-const ACCEL_LIMIT = 5; // seconds
-const FORMATION_DISTANCE = 100; // px
-const DISABLED_ARMOR_THRESHOLD = 0.2; // 20% armor threshold for disabling ships
-const DEFAULT_SHIELD_REGEN_RATE = 0.5; // points per second (cut in half from 1.0)
-const PIVOT_SIZE = 3; // px - size of pivot highlight for high-res visibility
-const PIVOT_HALF = Math.floor(PIVOT_SIZE / 2);
+const GAME_WIDTH = typeof globalThis.GAME_WIDTH !== 'undefined' ? globalThis.GAME_WIDTH : 1000;
+const GAME_HEIGHT = typeof globalThis.GAME_HEIGHT !== 'undefined' ? globalThis.GAME_HEIGHT : 600;
+const OFFSCREEN = typeof globalThis.OFFSCREEN !== 'undefined' ? globalThis.OFFSCREEN : 100;
+const PIXELS_PER_METER = typeof globalThis.PIXELS_PER_METER !== 'undefined' ? globalThis.PIXELS_PER_METER : 1;
+const TURN_RATE = typeof globalThis.TURN_RATE !== 'undefined' ? globalThis.TURN_RATE : 0.04; // rad/frame
+const ACCEL_LIMIT = typeof globalThis.ACCEL_LIMIT !== 'undefined' ? globalThis.ACCEL_LIMIT : 5; // seconds
+const FORMATION_DISTANCE = typeof globalThis.FORMATION_DISTANCE !== 'undefined' ? globalThis.FORMATION_DISTANCE : 100; // px
+const DISABLED_ARMOR_THRESHOLD = typeof globalThis.DISABLED_ARMOR_THRESHOLD !== 'undefined' ? globalThis.DISABLED_ARMOR_THRESHOLD : 0.2; // 20% armor threshold for disabling ships
+const DEFAULT_SHIELD_REGEN_RATE = typeof globalThis.DEFAULT_SHIELD_REGEN_RATE !== 'undefined' ? globalThis.DEFAULT_SHIELD_REGEN_RATE : 0.5; // points per second (cut in half from 1.0)
+const PIVOT_SIZE = typeof globalThis.PIVOT_SIZE !== 'undefined' ? globalThis.PIVOT_SIZE : 3; // px - size of pivot highlight for high-res visibility
+const PIVOT_HALF = typeof globalThis.PIVOT_HALF !== 'undefined' ? globalThis.PIVOT_HALF : Math.floor(PIVOT_SIZE / 2);
+const LANDING_SPEED_LIMIT = typeof globalThis.LANDING_SPEED_LIMIT !== 'undefined' ? globalThis.LANDING_SPEED_LIMIT : 10;
 let showHitboxes = false;
 let showPivots = false;
 
@@ -114,10 +160,10 @@ let showPivots = false;
 // Maps distances 0..4000m continuously using an exponential/logarithmic curve.
 // Ring distances: 500m (innermost), 1000m, 2000m, and 4000m (outermost ring).
 // Contacts at 4000m+ are clamped to the outermost ring via a separate check.
-const RADAR_MAX_DIST = 4000;
-const RADAR_LOG_K = 500;
-const RADAR_LOG_NORM = 1 / Math.log1p(RADAR_MAX_DIST / RADAR_LOG_K);
-const RADAR_RINGS = [500, 1000, 2000, 4000];
+const RADAR_MAX_DIST = typeof globalThis.RADAR_MAX_DIST !== 'undefined' ? globalThis.RADAR_MAX_DIST : 4000;
+const RADAR_LOG_K = typeof globalThis.RADAR_LOG_K !== 'undefined' ? globalThis.RADAR_LOG_K : 500;
+const RADAR_LOG_NORM = typeof globalThis.RADAR_LOG_NORM !== 'undefined' ? globalThis.RADAR_LOG_NORM : (1 / Math.log1p(RADAR_MAX_DIST / RADAR_LOG_K));
+const RADAR_RINGS = typeof globalThis.RADAR_RINGS !== 'undefined' ? globalThis.RADAR_RINGS : [500, 1000, 2000, 4000];
 
 function getRadarRadiusFraction(dist) {
   if (dist <= 0) return 0;
@@ -174,7 +220,8 @@ function normalizeAngle(angle) {
 
 const keyState = {};
 
-const GAME_KEYS = new Set([
+const DEFAULT_KEYBINDINGS = (typeof globalThis.DEFAULT_KEYBINDINGS !== 'undefined') ? globalThis.DEFAULT_KEYBINDINGS : null;
+const GAME_KEYS = (typeof globalThis.GAME_KEYS !== 'undefined') ? globalThis.GAME_KEYS : new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD',
   'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
   'ShiftLeft', 'ShiftRight',
@@ -276,348 +323,13 @@ function isFiring() {
 
 let app;
 
-// Available faction paint schemes.
-// Replaces the exact factory red shade (RGB: 212, 33, 33) on ship hulls.
-const FACTION_PAINTS = [
-  { name: 'Red', hex: '#d42121', r: 212, g: 33, b: 33, label: 'Crimson Vanguard' },
-  { name: 'Blue', hex: '#216cd4', r: 33, g: 108, b: 212, label: 'Cobalt Federation' },
-  { name: 'Green', hex: '#21d454', r: 33, g: 212, b: 84, label: 'Emerald Syndicate' },
-  { name: 'Gold', hex: '#d4a321', r: 212, g: 163, b: 33, label: 'Solaris Guild' },
-  { name: 'Purple', hex: '#9d21d4', r: 157, g: 33, b: 212, label: 'Nebula Fleet' },
-  { name: 'Cyan', hex: '#21c2d4', r: 33, g: 194, b: 212, label: 'Outer Colonies' },
-  { name: 'Orange', hex: '#d45e21', r: 212, g: 94, b: 33, label: 'Corsair Raiders' },
-  { name: 'Pink', hex: '#d4218b', r: 212, g: 33, b: 139, label: 'Nova Collective' },
-];
-
-// Weapon definitions
-const WEAPONS_DATA = {
-  light_blaster: {
-    name: 'Light Blaster',
-    damage: 1,
-    img: "img/weapons/Blaster.png",
-    size: 0,
-    attachmentPoint: {x: 2, y: 10}, // down and to the right of top left corner (0-indexed)
-    projectileOrigin: {x: 2, y: 2}, // relative to weapon top-left
-    fireRate: 2, // shots per second (halved from 4)
-    projectile: {
-      damage: 1,
-      img: "img/weapons/Blaster Bolt.png",
-      pivot: {x: 1, y: 1},
-      speed: 100, // px/s (doubled from 50 px/s)
-      rotation: 0.1, // spin speed in rad/tick
-      rotationSpeed: 0.1,
-      lifetime: 0.875, // seconds (cut in half again from 1.75s; range is 87.5px at 100 px/s)
-    }
-  }
-};
-
-const HULLS_DATA = [
-  {
-    name: 'Anvil',
-    mass: 1416, // kg
-    armor: 10,
-    pivot: {x: 15.5, y: 16.5},
-    engine_mounts: [
-      {x: 15, y: 24}
-    ],
-    engine_mount: {x: 15, y: 24},
-    img: "img/ships/Anvil.png",
-    hullRadius: 7,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 15, y: 17},
-      }
-    ],
-  },
-  {
-    name: 'Avocado',
-    mass: 3804, // kg
-    armor: 10,
-    pivot: {x: 15.5, y: 20},
-    engine_mounts: [
-      {x: 15, y: 28}
-    ],
-    engine_mount: {x: 15, y: 28},
-    img: "img/ships/Avocado.png",
-    hullRadius: 7,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: true,
-        location: {x: 15, y: 20},
-      }
-    ],
-  },
-  {
-    name: 'Boat',
-    mass: 8977, // kg
-    armor: 40,
-    pivot: {x: 17.5, y: 17},
-    engine_mounts: [
-      {x: 10, y: 25},
-      {x: 23, y: 25}
-    ],
-    engine_mount: {x: 10, y: 25},
-    img: "img/ships/Boat.png",
-    hullRadius: 8,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: true,
-        location: {x: 12, y: 8},
-      },
-      {
-        size: 0,
-        onTop: true,
-        location: {x: 20, y: 8},
-      }
-    ],
-  },
-  {
-    name: 'Crab',
-    mass: 2119, // kg
-    armor: 10,
-    pivot: {x: 16.5, y: 18},
-    engine_mounts: [
-      {x: 15, y: 25}
-    ],
-    engine_mount: {x: 15, y: 25},
-    img: "img/ships/Crab.png",
-    hullRadius: 7,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 4, y: 11},
-      },
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 27, y: 11},
-      }
-    ],
-  },
-  {
-    name: 'Delta',
-    mass: 906, // kg
-    armor: 10,
-    pivot: {x: 15.5, y: 18},
-    engine_mounts: [
-      {x: 14, y: 25}
-    ],
-    engine_mount: {x: 14, y: 25},
-    img: "img/ships/Delta.png",
-    hullRadius: 6,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 14, y: 16},
-      }
-    ],
-  },
-  {
-    name: 'Hammer',
-    mass: 1743, // kg
-    armor: 100,
-    pivot: {x: 16.5, y: 15},
-    engine_mounts: [
-      {x: 15, y: 24}
-    ],
-    engine_mount: {x: 15, y: 24},
-    img: "img/ships/Hammer.png",
-    hullRadius: 8,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 6, y: 9},
-      },
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 11, y: 8},
-      },
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 20, y: 8},
-      },
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 25, y: 9},
-      }
-    ],
-  },
-  {
-    name: 'Protogon',
-    mass: 3643, // kg
-    armor: 10,
-    pivot: {x: 11, y: 13},
-    engine_mounts: [
-      {x: 9, y: 20}
-    ],
-    engine_mount: {x: 9, y: 20},
-    img: "img/ships/Protogon.png",
-    hullRadius: 7,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 9, y: 12},
-      }
-    ],
-  },
-  {
-    name: 'Shadow',
-    mass: 2767, // kg
-    armor: 10,
-    pivot: {x: 15.5, y: 17},
-    engine_mounts: [
-      {x: 13, y: 27},
-      {x: 18, y: 27}
-    ],
-    engine_mount: {x: 13, y: 27},
-    img: "img/ships/Shadow.png",
-    hullRadius: 10,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 14, y: 8},
-      },
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 17, y: 8},
-      }
-    ],
-  },
-  {
-    name: 'Shuttle',
-    mass: 2050, // kg
-    armor: 10,
-    pivot: {x: 14.5, y: 16},
-    engine_mounts: [
-      {x: 14, y: 26}
-    ],
-    engine_mount: {x: 14, y: 26},
-    img: "img/ships/Shuttle.png",
-    hullRadius: 6,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 8, y: 15},
-      }
-    ],
-  },
-  {
-    name: 'Skate',
-    mass: 1865, // kg
-    armor: 10,
-    pivot: {x: 15.5, y: 14},
-    engine_mounts: [
-      {x: 15, y: 23}
-    ],
-    engine_mount: {x: 15, y: 23},
-    img: "img/ships/Skate.png",
-    hullRadius: 7,
-    shieldRadius: 20,
-    hardpoints: [
-      {
-        size: 0,
-        onTop: false,
-        location: {x: 15, y: 14},
-      }
-    ],
-  },
-];
-
-const ENGINES_DATA = [
-  {
-    name: 'thruster',
-    pivot: {x: 3, y: 1},
-    thrust: 50, // kN
-    mass: 1500, // kg
-    reversible: true,
-    img: "img/engines/Thruster.png",
-    imgLit: "img/engines/Thruster_lit.png",
-    imgReverse: "img/engines/Thruster_reverse.png",
-  },
-  {
-    name: 'turbo_thruster',
-    pivot: {x: 1, y: 2},
-    thrust: 100, // kN
-    mass: 1500, // kg
-    reversible: false,
-    img: "img/engines/TurboThruster.png",
-    imgLit: "img/engines/TurboThruster_lit.png",
-  },
-];
-
-const PLANETS_DATA = [
-  {
-    name: "Sugar",
-    img: "img/planets/Sugar.png",
-    description: "You look out upon a serene, frost-veiled world blanketed in pale carbonate dunes and sparkling crystalline plains. High-altitude ice plumes catch the distant starlight, drifting lazily across vast glassy flats. Beneath its deceptively sweet, snow-white crust lies a geologically dormant world rich in subterranean mineral reserves and glacial reservoirs.",
-    x: GAME_WIDTH / 2 - 600,
-    y: GAME_HEIGHT / 2 - 600,
-    radius: 100,
-  },
-  {
-    name: "Pepper",
-    img: "img/planets/Pepper.png",
-    description: "You gaze across a rugged, copper-tinted landscape carved by arid basalt canyons and windswept mesas. Rust-colored dust devils swirl under an amber sky, kicking up pungent sulfurous silt and coarse mineral grit. Known throughout the sector for its harsh climate and rich deposits of volatile spice compounds and heavy ores, Pepper is a fierce but bountiful frontier planet.",
-    x: GAME_WIDTH / 2 + 1300,
-    y: GAME_HEIGHT / 2 + 1100,
-    radius: 100,
-  },
-  {
-    name: "Pepper II",
-    img: "img/planets/Pepper2.png",
-    description: "You stare into the dense, swirling storm bands of an untamed volcanic sister world. Through the violet auroral haze, jagged obsidian peaks rise above steaming caldera basins glowing with geothermal heat. Heavy with rare industrial isotopes and energized atmospheric gases, this high-pressure planet presents a dramatic, awe-inspiring panorama of primordial planetary forces.",
-    x: GAME_WIDTH / 2 - 2000,
-    y: GAME_HEIGHT / 2 + 1800,
-    radius: 100,
-  },
-];
-
-const ASSET_PATHS = [
-  "img/ships/Anvil.png",
-  "img/ships/Avocado.png",
-  "img/ships/Boat.png",
-  "img/ships/Crab.png",
-  "img/ships/Delta.png",
-  "img/ships/Hammer.png",
-  "img/ships/Protogon.png",
-  "img/ships/Shadow.png",
-  "img/ships/Shuttle.png",
-  "img/ships/Skate.png",
-  "img/engines/Thruster.png",
-  "img/engines/Thruster_lit.png",
-  "img/engines/Thruster_reverse.png",
-  "img/engines/TurboThruster.png",
-  "img/engines/TurboThruster_lit.png",
-  "img/weapons/Blaster.png",
-  "img/weapons/Blaster Bolt.png",
-  "img/stars/Star.png",
-  "img/planets/Sugar.png",
-  "img/planets/Pepper.png",
-  "img/planets/Pepper2.png"
-];
+// Game data definitions imported from data/
+const FACTION_PAINTS = (typeof globalThis.FACTION_PAINTS !== 'undefined') ? globalThis.FACTION_PAINTS : [];
+const WEAPONS_DATA = (typeof globalThis.WEAPONS_DATA !== 'undefined') ? globalThis.WEAPONS_DATA : {};
+const HULLS_DATA = (typeof globalThis.HULLS_DATA !== 'undefined') ? globalThis.HULLS_DATA : [];
+const ENGINES_DATA = (typeof globalThis.ENGINES_DATA !== 'undefined') ? globalThis.ENGINES_DATA : [];
+const PLANETS_DATA = (typeof globalThis.PLANETS_DATA !== 'undefined') ? globalThis.PLANETS_DATA : [];
+const ASSET_PATHS = (typeof globalThis.ASSET_PATHS !== 'undefined') ? globalThis.ASSET_PATHS : [];
 
 // Preloaded HTMLImageElements for direct pixel manipulation in memory
 const rawImages = {};
@@ -1028,15 +740,7 @@ function buildShip(hullChoice, engineChoice, paintChoice, weaponsChoice) {
   return shipObj;
 }
 
-// Hexagonal Grid and Fleet Formation System
-const HEX_DIRECTIONS = [
-  { q: 1, r: 0, s: -1 },
-  { q: 1, r: -1, s: 0 },
-  { q: 0, r: -1, s: 1 },
-  { q: -1, r: 0, s: 1 },
-  { q: -1, r: 1, s: 0 },
-  { q: 0, r: 1, s: -1 },
-];
+// Hexagonal Grid and Fleet Formation System (HEX_DIRECTIONS imported from data/constants.js)
 
 function getHexRing(radius) {
   const results = [];
@@ -3467,6 +3171,17 @@ function setup() {
     window.departPlanet = departPlanet;
     window.showGameNotification = showGameNotification;
     window.onLandPressed = onLandPressed;
+    window.CONSTANTS = globalThis.CONSTANTS;
+    window.DEFAULT_KEYBINDINGS = DEFAULT_KEYBINDINGS;
+    window.GAME_KEYS = GAME_KEYS;
+    window.HULLS_DATA = HULLS_DATA;
+    window.ENGINES_DATA = ENGINES_DATA;
+    window.WEAPONS_DATA = WEAPONS_DATA;
+    window.FACTION_PAINTS = FACTION_PAINTS;
+    window.ASSET_PATHS = ASSET_PATHS;
+    window.HEX_DIRECTIONS = HEX_DIRECTIONS;
+    window.ACCEL_LIMIT = ACCEL_LIMIT;
+    window.TURN_RATE = TURN_RATE;
   }
 
   if (targetIdBadge) {
