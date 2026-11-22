@@ -46,6 +46,55 @@ const statusMassVal = document.getElementById("status-mass-val");
 
 let onTabPressed = null;
 let onSelectNearestHostile = null;
+let onLandPressed = null;
+let isLanded = false;
+let currentLandedPlanet = null;
+
+let notificationTimeout = null;
+let notificationFadeTimeout = null;
+
+function showGameNotification(message) {
+  const el = document.getElementById("game-notification");
+  if (!el) return;
+
+  if (notificationTimeout) {
+    clearTimeout(notificationTimeout);
+    notificationTimeout = null;
+  }
+  if (notificationFadeTimeout) {
+    clearTimeout(notificationFadeTimeout);
+    notificationFadeTimeout = null;
+  }
+
+  el.textContent = message;
+  el.classList.remove("fade-out");
+  el.classList.add("visible");
+
+  notificationTimeout = setTimeout(() => {
+    el.classList.remove("visible");
+    el.classList.add("fade-out");
+    notificationFadeTimeout = setTimeout(() => {
+      el.classList.remove("fade-out");
+      el.textContent = "";
+      notificationFadeTimeout = null;
+    }, 800);
+    notificationTimeout = null;
+  }, 5000);
+}
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'isLanded', {
+    get: () => isLanded,
+    set: (val) => { isLanded = val; },
+    configurable: true
+  });
+  Object.defineProperty(window, 'currentLandedPlanet', {
+    get: () => currentLandedPlanet,
+    set: (val) => { currentLandedPlanet = val; },
+    configurable: true
+  });
+  window.showGameNotification = showGameNotification;
+}
 
 const GAME_WIDTH = 1000;
 const GAME_HEIGHT = 600;
@@ -158,6 +207,20 @@ function handleKeydown(event) {
     if (typeof onSelectNearestHostile === 'function') {
       onSelectNearestHostile();
     }
+    return;
+  }
+
+  // The L key attempts to land on a planet
+  if (code === 'KeyL' || key === 'l' || event.keyCode === 76) {
+    event.preventDefault();
+    if (typeof onLandPressed === 'function') {
+      onLandPressed();
+    }
+    return;
+  }
+
+  // Game is paused while landed
+  if (isLanded) {
     return;
   }
 
@@ -509,6 +572,7 @@ const PLANETS_DATA = [
   {
     name: "Sugar",
     img: "img/planets/Sugar.png",
+    description: "You look out upon a serene, frost-veiled world blanketed in pale carbonate dunes and sparkling crystalline plains. High-altitude ice plumes catch the distant starlight, drifting lazily across vast glassy flats. Beneath its deceptively sweet, snow-white crust lies a geologically dormant world rich in subterranean mineral reserves and glacial reservoirs.",
     x: GAME_WIDTH / 2 - 600,
     y: GAME_HEIGHT / 2 - 600,
     radius: 100,
@@ -516,6 +580,7 @@ const PLANETS_DATA = [
   {
     name: "Pepper",
     img: "img/planets/Pepper.png",
+    description: "You gaze across a rugged, copper-tinted landscape carved by arid basalt canyons and windswept mesas. Rust-colored dust devils swirl under an amber sky, kicking up pungent sulfurous silt and coarse mineral grit. Known throughout the sector for its harsh climate and rich deposits of volatile spice compounds and heavy ores, Pepper is a fierce but bountiful frontier planet.",
     x: GAME_WIDTH / 2 + 1300,
     y: GAME_HEIGHT / 2 + 1100,
     radius: 100,
@@ -523,6 +588,7 @@ const PLANETS_DATA = [
   {
     name: "Pepper II",
     img: "img/planets/Pepper2.png",
+    description: "You stare into the dense, swirling storm bands of an untamed volcanic sister world. Through the violet auroral haze, jagged obsidian peaks rise above steaming caldera basins glowing with geothermal heat. Heavy with rare industrial isotopes and energized atmospheric gases, this high-pressure planet presents a dramatic, awe-inspiring panorama of primordial planetary forces.",
     x: GAME_WIDTH / 2 - 2000,
     y: GAME_HEIGHT / 2 + 1800,
     radius: 100,
@@ -1512,6 +1578,7 @@ function setup() {
       data: {
         id: nextShipId++,
         name: def.name,
+        description: def.description,
         isPlanet: true,
         isDestroyed: false,
         radius: def.radius,
@@ -3087,6 +3154,7 @@ function setup() {
   }
 
   function onMainScreenClick(event) {
+    if (isLanded) return;
     if (!app || !app.canvas) return;
     const canvas = app.canvas;
     const rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: canvas.width || GAME_WIDTH, height: canvas.height || GAME_HEIGHT };
@@ -3144,6 +3212,7 @@ function setup() {
   }
 
   function onRadarScreenClick(event) {
+    if (isLanded) return;
     if (!radarCanvas || !playerShip) return;
     const rect = radarCanvas.getBoundingClientRect ? radarCanvas.getBoundingClientRect() : { left: 0, top: 0, width: radarCanvas.width, height: radarCanvas.height };
     const rectW = rect.width > 0 ? rect.width : radarCanvas.width;
@@ -3167,6 +3236,121 @@ function setup() {
     }
 
     return selectClosestShipToRadarPoint(clickX, clickY);
+  }
+
+  function landOnPlanet(planet) {
+    if (!planet) return;
+    isLanded = true;
+    currentLandedPlanet = planet;
+
+    if (playerShip && playerShip.data) {
+      playerShip.data.vx = 0;
+      playerShip.data.vy = 0;
+      if (playerShip.data.engineLitSprite) playerShip.data.engineLitSprite.visible = false;
+      if (playerShip.data.engineReverseSprite) playerShip.data.engineReverseSprite.visible = false;
+      if (Array.isArray(playerShip.data.subEngines)) {
+        for (const se of playerShip.data.subEngines) {
+          if (se.engineLitSprite) se.engineLitSprite.visible = false;
+          if (se.engineReverseSprite) se.engineReverseSprite.visible = false;
+        }
+      }
+    }
+
+    for (const k in keyState) {
+      keyState[k] = false;
+    }
+
+    const modal = document.getElementById('planet-modal');
+    const title = document.getElementById('planet-modal-title');
+    const desc = document.getElementById('planet-modal-description') || document.getElementById('planet-modal-desc');
+    const img = document.getElementById('planet-modal-image');
+
+    if (title) {
+      title.textContent = planet.data.name;
+    }
+    if (desc) {
+      desc.textContent = planet.data.description || '';
+    }
+    if (img) {
+      if (planet.data.img) {
+        img.src = planet.data.img;
+        img.style.display = 'block';
+      } else {
+        img.style.display = 'none';
+      }
+    }
+    if (modal) {
+      modal.classList.remove('hidden');
+    }
+  }
+
+  function departPlanet() {
+    isLanded = false;
+    currentLandedPlanet = null;
+
+    const modal = document.getElementById('planet-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+  }
+
+  function attemptLanding() {
+    if (isLanded) return false;
+    if (!playerShip || !playerShip.sprite) return false;
+
+    const playerPivotX = playerShip.sprite.x;
+    const playerPivotY = playerShip.sprite.y;
+
+    let targetPlanet = null;
+    let minOverlapDist = Infinity;
+
+    if (typeof planets !== 'undefined' && planets) {
+      for (let i = 0; i < planets.length; i++) {
+        const p = planets[i];
+        if (!p || !p.sprite || (p.data && p.data.isDestroyed)) continue;
+        const px = p.sprite.x != null ? p.sprite.x : (p.particle ? p.particle.x : p.data.x);
+        const py = p.sprite.y != null ? p.sprite.y : (p.particle ? p.particle.y : p.data.y);
+        const dist = Math.hypot(playerPivotX - px, playerPivotY - py);
+        const planetRadius = (p.data && p.data.radius) || 100;
+        if (dist <= planetRadius) {
+          if (dist < minOverlapDist) {
+            minOverlapDist = dist;
+            targetPlanet = p;
+          }
+        }
+      }
+    }
+
+    if (!targetPlanet) {
+      showGameNotification("You're not close enough to any locations to land.");
+      return false;
+    }
+
+    const speed = Math.hypot(playerShip.data.vx || 0, playerShip.data.vy || 0);
+    if (speed >= 10) {
+      showGameNotification("You're moving too quickly to land.");
+      return false;
+    }
+
+    landOnPlanet(targetPlanet);
+    return true;
+  }
+
+  onLandPressed = attemptLanding;
+
+  const departBtn = document.getElementById('planet-depart-btn');
+  if (departBtn) {
+    departBtn.addEventListener('click', (event) => {
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+      departPlanet();
+    });
+  }
+
+  const planetModal = document.getElementById('planet-modal');
+  if (planetModal) {
+    planetModal.addEventListener('click', (event) => {
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+    });
   }
 
   if (app && app.canvas) {
@@ -3278,6 +3462,11 @@ function setup() {
     window.getShipMaxWeaponRange = getShipMaxWeaponRange;
     window.DEFAULT_SHIELD_REGEN_RATE = DEFAULT_SHIELD_REGEN_RATE;
     window.regenerateShields = regenerateShields;
+    window.attemptLanding = attemptLanding;
+    window.landOnPlanet = landOnPlanet;
+    window.departPlanet = departPlanet;
+    window.showGameNotification = showGameNotification;
+    window.onLandPressed = onLandPressed;
   }
 
   if (targetIdBadge) {
@@ -3961,6 +4150,8 @@ function setup() {
   let fpsTimer = 0;
 
   function gameLoop(delta){
+    if (isLanded) return;
+
     fpsTimer += delta;
     if (fpsTimer >= 15) {
       fpsTimer = 0;
