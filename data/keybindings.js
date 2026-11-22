@@ -18,23 +18,23 @@
   const DEFAULT_KEYBINDINGS = {
     thrust: {
       name: 'Thrust Forward',
-      keys: ['KeyW', 'ArrowUp', 'w', 'arrowup'],
-      keyCodes: [38, 87],
+      keys: ['ArrowUp', 'arrowup'],
+      keyCodes: [38],
     },
     reverse: {
       name: 'Reverse / Brake',
-      keys: ['KeyS', 'ArrowDown', 's', 'arrowdown'],
-      keyCodes: [40, 83],
+      keys: ['ArrowDown', 'arrowdown'],
+      keyCodes: [40],
     },
     turnLeft: {
       name: 'Turn Left',
-      keys: ['KeyA', 'ArrowLeft', 'a', 'arrowleft'],
-      keyCodes: [37, 65],
+      keys: ['ArrowLeft', 'arrowleft'],
+      keyCodes: [37],
     },
     turnRight: {
       name: 'Turn Right',
-      keys: ['KeyD', 'ArrowRight', 'd', 'arrowright'],
-      keyCodes: [39, 68],
+      keys: ['ArrowRight', 'arrowright'],
+      keyCodes: [39],
     },
     fire: {
       name: 'Fire Primary Weapons',
@@ -56,15 +56,18 @@
       keys: ['KeyL', 'l'],
       keyCodes: [76],
     },
+    pause: {
+      name: 'Pause / Controls',
+      keys: ['Escape', 'escape'],
+      keyCodes: [27],
+    },
   };
 
   // Set of all primary game flight keys used to prevent browser scroll and handle input state
   const GAME_KEYS = new Set([
-    'KeyW', 'KeyA', 'KeyS', 'KeyD',
     'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
     'ShiftLeft', 'ShiftRight',
     'Space', ' ', 'space',
-    'w', 'a', 's', 'd',
     'arrowup', 'arrowleft', 'arrowdown', 'arrowright',
     'shift',
   ]);

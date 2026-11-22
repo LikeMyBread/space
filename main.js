@@ -93,6 +93,7 @@ let onTabPressed = null;
 let onSelectNearestHostile = null;
 let onLandPressed = null;
 let isLanded = false;
+let isGamePaused = false;
 let currentLandedPlanet = null;
 
 let notificationTimeout = null;
@@ -127,10 +128,45 @@ function showGameNotification(message) {
   }, 5000);
 }
 
+function pauseGame() {
+  isGamePaused = true;
+  for (const k in keyState) {
+    keyState[k] = false;
+  }
+  const modal = document.getElementById('pause-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+  }
+}
+
+function unpauseGame() {
+  isGamePaused = false;
+  for (const k in keyState) {
+    keyState[k] = false;
+  }
+  const modal = document.getElementById('pause-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+function togglePause() {
+  if (isGamePaused) {
+    unpauseGame();
+  } else {
+    pauseGame();
+  }
+}
+
 if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'isLanded', {
     get: () => isLanded,
     set: (val) => { isLanded = val; },
+    configurable: true
+  });
+  Object.defineProperty(window, 'isGamePaused', {
+    get: () => isGamePaused,
+    set: (val) => { isGamePaused = val; },
     configurable: true
   });
   Object.defineProperty(window, 'currentLandedPlanet', {
@@ -139,6 +175,9 @@ if (typeof window !== 'undefined') {
     configurable: true
   });
   window.showGameNotification = showGameNotification;
+  window.pauseGame = pauseGame;
+  window.unpauseGame = unpauseGame;
+  window.togglePause = togglePause;
 }
 
 const GAME_WIDTH = typeof globalThis.GAME_WIDTH !== 'undefined' ? globalThis.GAME_WIDTH : 1000;
@@ -222,11 +261,9 @@ const keyState = {};
 
 const DEFAULT_KEYBINDINGS = (typeof globalThis.DEFAULT_KEYBINDINGS !== 'undefined') ? globalThis.DEFAULT_KEYBINDINGS : null;
 const GAME_KEYS = (typeof globalThis.GAME_KEYS !== 'undefined') ? globalThis.GAME_KEYS : new Set([
-  'KeyW', 'KeyA', 'KeyS', 'KeyD',
   'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight',
   'ShiftLeft', 'ShiftRight',
   'Space', ' ', 'space',
-  'w', 'a', 's', 'd',
   'arrowup', 'arrowleft', 'arrowdown', 'arrowright',
   'shift'
 ]);
@@ -239,6 +276,18 @@ function handleKeydown(event) {
 
   const code = event.code;
   const key = event.key ? event.key.toLowerCase() : '';
+
+  // Escape pauses or unpauses the game
+  if (code === 'Escape' || key === 'escape' || event.keyCode === 27) {
+    event.preventDefault();
+    togglePause();
+    return;
+  }
+
+  // When paused or landed, do not process other flight/combat inputs
+  if (isGamePaused || isLanded) {
+    return;
+  }
 
   if (code === 'Tab' || key === 'tab' || event.keyCode === 9) {
     event.preventDefault();
@@ -263,11 +312,6 @@ function handleKeydown(event) {
     if (typeof onLandPressed === 'function') {
       onLandPressed();
     }
-    return;
-  }
-
-  // Game is paused while landed
-  if (isLanded) {
     return;
   }
 
@@ -301,20 +345,20 @@ window.addEventListener('blur', () => {
 });
 
 function isThrusting() {
-  return !!(keyState['KeyW'] || keyState['ArrowUp'] || keyState['w'] || keyState['arrowup'] || keyState[38] || keyState[87]);
+  return !!(keyState['ArrowUp'] || keyState['arrowup'] || keyState[38]);
 }
 
 function isReversing() {
-  return !!(keyState['KeyS'] || keyState['ArrowDown'] || keyState['s'] || keyState['arrowdown'] || keyState[40] || keyState[83]);
+  return !!(keyState['ArrowDown'] || keyState['arrowdown'] || keyState[40]);
 }
 
 function isTurningLeft() {
   const isShift = keyState['ShiftLeft'] || keyState['ShiftRight'] || keyState['shift'] || keyState[16];
-  return !!((keyState['KeyA'] || keyState['ArrowLeft'] || keyState['a'] || keyState['arrowleft'] || keyState[37] || keyState[65]) && !isShift);
+  return !!((keyState['ArrowLeft'] || keyState['arrowleft'] || keyState[37]) && !isShift);
 }
 
 function isTurningRight() {
-  return !!(keyState['KeyD'] || keyState['ArrowRight'] || keyState['d'] || keyState['arrowright'] || keyState[39] || keyState[68]);
+  return !!(keyState['ArrowRight'] || keyState['arrowright'] || keyState[39]);
 }
 
 function isFiring() {
@@ -2858,7 +2902,7 @@ function setup() {
   }
 
   function onMainScreenClick(event) {
-    if (isLanded) return;
+    if (isGamePaused || isLanded) return;
     if (!app || !app.canvas) return;
     const canvas = app.canvas;
     const rect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: canvas.width || GAME_WIDTH, height: canvas.height || GAME_HEIGHT };
@@ -2916,7 +2960,7 @@ function setup() {
   }
 
   function onRadarScreenClick(event) {
-    if (isLanded) return;
+    if (isGamePaused || isLanded) return;
     if (!radarCanvas || !playerShip) return;
     const rect = radarCanvas.getBoundingClientRect ? radarCanvas.getBoundingClientRect() : { left: 0, top: 0, width: radarCanvas.width, height: radarCanvas.height };
     const rectW = rect.width > 0 ? rect.width : radarCanvas.width;
@@ -2999,7 +3043,7 @@ function setup() {
   }
 
   function attemptLanding() {
-    if (isLanded) return false;
+    if (isGamePaused || isLanded) return false;
     if (!playerShip || !playerShip.sprite) return false;
 
     const playerPivotX = playerShip.sprite.x;
@@ -3054,6 +3098,21 @@ function setup() {
   if (planetModal) {
     planetModal.addEventListener('click', (event) => {
       if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+    });
+  }
+
+  const pauseModal = document.getElementById('pause-modal');
+  if (pauseModal) {
+    pauseModal.addEventListener('click', (event) => {
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+    });
+  }
+
+  const pauseResumeBtn = document.getElementById('pause-resume-btn');
+  if (pauseResumeBtn) {
+    pauseResumeBtn.addEventListener('click', (event) => {
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+      unpauseGame();
     });
   }
 
@@ -3171,6 +3230,10 @@ function setup() {
     window.departPlanet = departPlanet;
     window.showGameNotification = showGameNotification;
     window.onLandPressed = onLandPressed;
+    window.pauseGame = pauseGame;
+    window.unpauseGame = unpauseGame;
+    window.togglePause = togglePause;
+    window.isGamePaused = isGamePaused;
     window.CONSTANTS = globalThis.CONSTANTS;
     window.DEFAULT_KEYBINDINGS = DEFAULT_KEYBINDINGS;
     window.GAME_KEYS = GAME_KEYS;
@@ -3865,7 +3928,7 @@ function setup() {
   let fpsTimer = 0;
 
   function gameLoop(delta){
-    if (isLanded) return;
+    if (isGamePaused || isLanded) return;
 
     fpsTimer += delta;
     if (fpsTimer >= 15) {

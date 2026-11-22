@@ -720,6 +720,141 @@
     .btn-depart:active {
       transform: scale(0.98);
     }
+
+    /* Pause Modal */
+    #pause-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1000px;
+      height: 600px;
+      background: rgba(3, 8, 20, 0.92);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      box-sizing: border-box;
+      padding: 24px;
+    }
+
+    #pause-modal.hidden {
+      display: none;
+    }
+
+    .pause-modal-content {
+      background: #091220;
+      border: 1px solid #1a2942;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.15);
+      width: 620px;
+      max-width: 90%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 30px 26px;
+      box-sizing: border-box;
+      gap: 16px;
+    }
+
+    .pause-modal-title {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f1f5f9;
+      text-align: center;
+      border-bottom: 1px solid #1a2942;
+      width: 100%;
+      padding-bottom: 12px;
+    }
+
+    .pause-modal-subtitle {
+      font-size: 13px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: -6px;
+    }
+
+    .pause-bindings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      background: #060d17;
+      border: 1px solid #142238;
+      border-radius: 8px;
+      padding: 14px 18px;
+      box-sizing: border-box;
+    }
+
+    .binding-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid #0f1c2e;
+    }
+
+    .binding-row:last-child {
+      border-bottom: none;
+    }
+
+    .binding-action {
+      font-size: 13px;
+      font-weight: 500;
+      color: #cbd5e1;
+    }
+
+    .binding-keys {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .key-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #38bdf8;
+      background: #0c2038;
+      border: 1px solid #1e3a5f;
+      border-radius: 4px;
+      padding: 3px 8px;
+      letter-spacing: 0.04em;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .pause-modal-footer {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      padding-top: 4px;
+    }
+
+    .btn-resume {
+      background: #0f3d64;
+      border-color: #38bdf8;
+      color: #ffffff;
+      padding: 10px 32px;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+      transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+    }
+
+    .btn-resume:hover {
+      background: #0284c7;
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.6);
+    }
+
+    .btn-resume:active {
+      transform: scale(0.98);
+    }
   </style>
 </head>
 <body>
@@ -812,6 +947,57 @@
           </div>
           <div class="planet-modal-footer">
             <button id="planet-depart-btn" class="btn btn-depart" type="button">Depart</button>
+          </div>
+        </div>
+      </div>
+      <div id="pause-modal" class="hidden">
+        <div class="pause-modal-content">
+          <div class="pause-modal-title">GAME PAUSED</div>
+          <div class="pause-modal-subtitle">Flight & Tactical Controls</div>
+          <div class="pause-bindings-list">
+            <div class="binding-row">
+              <span class="binding-action">Thrust Forward</span>
+              <div class="binding-keys"><kbd class="key-badge">↑</kbd> <span style="color:#64748b; font-size:11px;">or</span> <kbd class="key-badge">Up Arrow</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Reverse / Brake</span>
+              <div class="binding-keys"><kbd class="key-badge">↓</kbd> <span style="color:#64748b; font-size:11px;">or</span> <kbd class="key-badge">Down Arrow</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Turn Left</span>
+              <div class="binding-keys"><kbd class="key-badge">←</kbd> <span style="color:#64748b; font-size:11px;">or</span> <kbd class="key-badge">Left Arrow</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Turn Right</span>
+              <div class="binding-keys"><kbd class="key-badge">→</kbd> <span style="color:#64748b; font-size:11px;">or</span> <kbd class="key-badge">Right Arrow</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Fire Primary Weapons</span>
+              <div class="binding-keys"><kbd class="key-badge">Space</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Cycle Target (Next / Prev)</span>
+              <div class="binding-keys"><kbd class="key-badge">Tab</kbd> <span style="color:#64748b; font-size:11px;">/</span> <kbd class="key-badge">Shift + Tab</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Target Nearest Hostile</span>
+              <div class="binding-keys"><kbd class="key-badge">X</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Land on Planet</span>
+              <div class="binding-keys"><kbd class="key-badge">L</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Pause / Resume Game</span>
+              <div class="binding-keys"><kbd class="key-badge">Esc</kbd></div>
+            </div>
+            <div class="binding-row">
+              <span class="binding-action">Direct Radar / Canvas Targeting</span>
+              <div class="binding-keys"><kbd class="key-badge">Click Ship or Radar Dot</kbd></div>
+            </div>
+          </div>
+          <div class="pause-modal-footer">
+            <button id="pause-resume-btn" class="btn btn-resume" type="button">Resume Flight (Esc)</button>
           </div>
         </div>
       </div>

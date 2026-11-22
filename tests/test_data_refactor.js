@@ -46,7 +46,7 @@ const keybindingsModule = require('../data/keybindings.js');
 const { DEFAULT_KEYBINDINGS, GAME_KEYS, isBindingPressed, isEventMatch } = keybindingsModule;
 
 assert(DEFAULT_KEYBINDINGS, 'DEFAULT_KEYBINDINGS must be exported');
-const expectedActions = ['thrust', 'reverse', 'turnLeft', 'turnRight', 'fire', 'cycleTarget', 'selectNearestHostile', 'land'];
+const expectedActions = ['thrust', 'reverse', 'turnLeft', 'turnRight', 'fire', 'cycleTarget', 'selectNearestHostile', 'land', 'pause'];
 for (const action of expectedActions) {
   assert(DEFAULT_KEYBINDINGS[action], `DEFAULT_KEYBINDINGS must define action "${action}"`);
   assert(Array.isArray(DEFAULT_KEYBINDINGS[action].keys), `Action "${action}" must define keys array`);
@@ -54,13 +54,17 @@ for (const action of expectedActions) {
 }
 
 assert(GAME_KEYS instanceof Set, 'GAME_KEYS must be a Set');
-assert(GAME_KEYS.has('KeyW') && GAME_KEYS.has('Space') && GAME_KEYS.has('KeyA'), 'GAME_KEYS must include primary game keys');
+assert(GAME_KEYS.has('ArrowUp') && GAME_KEYS.has('Space') && GAME_KEYS.has('ArrowLeft'), 'GAME_KEYS must include primary game keys');
+assert(!GAME_KEYS.has('KeyW') && !GAME_KEYS.has('KeyA') && !GAME_KEYS.has('KeyS') && !GAME_KEYS.has('KeyD'), 'GAME_KEYS must not include WASD');
 
 // Test input helpers
-assert(isBindingPressed(DEFAULT_KEYBINDINGS.thrust, { KeyW: true }), 'isBindingPressed should match keyState');
-assert(isBindingPressed(DEFAULT_KEYBINDINGS.thrust, { 87: true }), 'isBindingPressed should match keyCode in keyState');
+assert(isBindingPressed(DEFAULT_KEYBINDINGS.thrust, { ArrowUp: true }), 'isBindingPressed should match ArrowUp');
+assert(isBindingPressed(DEFAULT_KEYBINDINGS.thrust, { 38: true }), 'isBindingPressed should match keyCode 38 in keyState');
+assert(!isBindingPressed(DEFAULT_KEYBINDINGS.thrust, { KeyW: true }), 'isBindingPressed should not match removed KeyW');
+assert(!isBindingPressed(DEFAULT_KEYBINDINGS.thrust, { 87: true }), 'isBindingPressed should not match removed keyCode 87');
 assert(!isBindingPressed(DEFAULT_KEYBINDINGS.thrust, { KeyK: true }), 'isBindingPressed should return false for unbound key');
 assert(isEventMatch(DEFAULT_KEYBINDINGS.land, { code: 'KeyL', key: 'l', keyCode: 76 }), 'isEventMatch should match landing event');
+assert(isEventMatch(DEFAULT_KEYBINDINGS.pause, { code: 'Escape', key: 'escape', keyCode: 27 }), 'isEventMatch should match pause event');
 console.log('✓ data/keybindings.js exports default keybindings and input matchers');
 
 // 4. Test hulls.js
